@@ -1,0 +1,38 @@
+{
+    "name": "lock-day-logs",
+    "runtime": "node-18.0",
+    "execute": [],
+    "events": [],
+    "schedule": "29 18 * * *",
+    "timeout": 60,
+    "enabled": true,
+    "logging": true,
+    "entrypoint": "src/main.js",
+    "commands": "npm install",
+    "scopes": [
+        "databases.read",
+        "databases.write"
+    ],
+    "vars": [
+        {
+            "name": "APPWRITE_ENDPOINT",
+            "value": ""
+        },
+        {
+            "name": "APPWRITE_PROJECT_ID",
+            "value": ""
+        },
+        {
+            "name": "APPWRITE_API_KEY",
+            "value": ""
+        },
+        {
+            "name": "DB_ID",
+            "value": ""
+        },
+        {
+            "name": "COL_DAY_LOGS",
+            "value": ""
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://appwrite.io/schemas/function.json",
+  "name": "delete-user-account",
+  "runtime": "node-22.0",
+  "execute": [],
+  "events": [],
+  "schedule": "",
+  "timeout": 30,
+  "enabled": true,
+  "logging": true,
+  "entrypoint": "src/index.js",
+  "commands": "npm install",
+  "scopes": [],
+  "vars": [
+    {
+      "name": "DB_ID",
+      "value": ""
+    },
+    {
+      "name": "COL_BUSINESSES",
+      "value": ""
+    },
+    {
+      "name": "COL_CUSTOMERS",
+      "value": ""
+    },
+    {
+      "name": "COL_DAY_LOGS",
+      "value": ""
+    },
+    {
+      "name": "COL_SUBSCRIPTIONS",
+      "value": ""
+    },
+    {
+      "name": "COL_USERS",
+      "value": ""
+    },
+    {
+      "name": "APPWRITE_API_KEY",
+      "value": ""
+    }
+  ]
+}

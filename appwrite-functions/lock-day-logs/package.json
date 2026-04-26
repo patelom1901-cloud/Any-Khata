@@ -1,0 +1,10 @@
+{
+    "name": "lock-day-logs",
+    "version": "1.0.0",
+    "description": "Locks all day_log documents for today at 23:59 IST by setting is_locked = true",
+    "type": "module",
+    "main": "src/main.js",
+    "dependencies": {
+        "node-appwrite": "^14.0.0"
+    }
+}
