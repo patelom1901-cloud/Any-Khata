@@ -8,8 +8,10 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  StatusBar,
+  SafeAreaView
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,16 +21,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { getAd, updateAd } from '../../lib/database';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import { useTranslation } from '../../hooks/useTranslation';
-
-// ─── Screen ───────────────────────────────────────────────────
+import { WavyHeader } from '../../components/ui/WavyHeader';
+import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 export default function AdEditScreen() {
   const { t } = useTranslation();
   const { adId } = useLocalSearchParams();
 
-  // ─── Validation schema ────────────────────────────────────────
   const adSchema = useMemo(() => z.object({
     businessName: z.string().min(2, t('ad_submit.error_business_name')),
     ownerName: z.string().min(2, t('ad_submit.error_owner_name')),
@@ -106,8 +107,6 @@ export default function AdEditScreen() {
     fetchAd();
   }, [adId]);
 
-  // ─── Photo upload ────────────────────────────────────────────
-
   const handlePickAndUploadPhoto = async () => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -155,8 +154,6 @@ export default function AdEditScreen() {
     }
   };
 
-  // ─── Submit ──────────────────────────────────────────────────
-
   const onSubmit = async (data: AdFormData) => {
     if (!imageUrl) {
       Alert.alert(t('common.error'), t('ad_submit.upload_store_photo_msg'));
@@ -187,255 +184,272 @@ export default function AdEditScreen() {
     }
   };
 
-  // ─── Render ──────────────────────────────────────────────────
-
   if (isLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={ThemeColors.brandLight} />
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Back button */}
-      <TouchableOpacity style={styles.backRow} onPress={() => router.back()} activeOpacity={0.7}>
-        <MaterialIcons name="arrow-back" size={22} color={Colors.textSecondary} />
-        <Text style={styles.backText}>{t('common.back')}</Text>
-      </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <Text style={styles.title}>{t('ad_edit.title')}</Text>
-      <Text style={styles.subtitle}>
-        {t('ad_edit.subtitle')}
-      </Text>
+      <WavyHeader>
+        <View style={styles.headerInner}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('ad_edit.title')}</Text>
+        </View>
+      </WavyHeader>
 
-      {/* ─── Photo picker ─────────────────────────── */}
-      <Text style={styles.sectionLabel}>{t('ad_submit.store_photo')} *</Text>
-      <TouchableOpacity
-        style={styles.photoPicker}
-        onPress={handlePickAndUploadPhoto}
-        disabled={isUploadingPhoto || isSubmitting}
-        activeOpacity={0.75}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {isUploadingPhoto ? (
-          <ActivityIndicator size="large" color={Colors.primary} />
-        ) : imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.photoPreview} resizeMode="cover" />
-        ) : (
-          <View style={styles.photoPlaceholder}>
-            <MaterialIcons name="add-a-photo" size={36} color={Colors.primary} />
-            <Text style={styles.photoHint}>{t('ad_submit.tap_to_upload')}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+        <Animated.View entering={FadeInDown.duration(600)}>
+          <Text style={styles.subtitle}>{t('ad_edit.subtitle')}</Text>
+        </Animated.View>
 
-      {/* ─── Required fields ─────────────────────── */}
-      <Text style={styles.sectionLabel}>{t('ad_submit.business_details')}</Text>
-
-      <Controller
-        control={control}
-        name="businessName"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.inputWrapper}>
-            <Input
-              label={t('ad_submit.business_name') + ' *'}
-              value={value}
-              onChangeText={onChange}
-              placeholder={t('common.placeholder_business')}
-            />
-            {errors.businessName && (
-              <Text style={styles.errorText}>{errors.businessName.message}</Text>
+        <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.formCard}>
+          <Text style={styles.sectionLabel}>{t('ad_submit.store_photo')} *</Text>
+          <TouchableOpacity
+            style={styles.photoPicker}
+            onPress={handlePickAndUploadPhoto}
+            disabled={isUploadingPhoto || isSubmitting}
+            activeOpacity={0.75}
+          >
+            {isUploadingPhoto ? (
+              <ActivityIndicator size="large" color={ThemeColors.brandLight} />
+            ) : imageUrl ? (
+              <Image source={{ uri: imageUrl }} style={styles.photoPreview} resizeMode="cover" />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <MaterialIcons name="add-a-photo" size={36} color={ThemeColors.brandMid} />
+                <Text style={styles.photoHint}>{t('ad_submit.tap_to_upload')}</Text>
+              </View>
             )}
-          </View>
-        )}
-      />
+          </TouchableOpacity>
 
-      <Controller
-        control={control}
-        name="ownerName"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.inputWrapper}>
-            <Input
-              label={t('ad_submit.owner_name') + ' *'}
-              value={value}
-              onChangeText={onChange}
-              placeholder={t('common.placeholder_owner')}
-            />
-            {errors.ownerName && (
-              <Text style={styles.errorText}>{errors.ownerName.message}</Text>
+          <Text style={styles.sectionLabel}>{t('ad_submit.business_details')}</Text>
+
+          <Controller
+            control={control}
+            name="businessName"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.inputWrapper}>
+                <Input
+                  label={t('ad_submit.business_name') + ' *'}
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder={t('common.placeholder_business')}
+                />
+                {errors.businessName && (
+                  <Text style={styles.errorText}>{errors.businessName.message}</Text>
+                )}
+              </View>
             )}
-          </View>
-        )}
-      />
+          />
 
-      <Controller
-        control={control}
-        name="phone"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.inputWrapper}>
-            <Input
-              label={t('ad_submit.whatsapp_number') + ' *'}
-              value={value}
-              onChangeText={onChange}
-              placeholder={t('common.placeholder_phone')}
-              keyboardType="phone-pad"
-              maxLength={10}
-              helperText={t('ad_submit.whatsapp_hint')}
-            />
-            {errors.phone && (
-              <Text style={styles.errorText}>{errors.phone.message}</Text>
+          <Controller
+            control={control}
+            name="ownerName"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.inputWrapper}>
+                <Input
+                  label={t('ad_submit.owner_name') + ' *'}
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder={t('common.placeholder_owner')}
+                />
+                {errors.ownerName && (
+                  <Text style={styles.errorText}>{errors.ownerName.message}</Text>
+                )}
+              </View>
             )}
-          </View>
-        )}
-      />
+          />
 
-      {/* ─── Optional fields ─────────────────────── */}
-      <Text style={styles.sectionLabel}>{t('ad_submit.optional_details')}</Text>
-      <Text style={styles.sectionHint}>{t('ad_submit.optional_hint')}</Text>
-
-      <Controller
-        control={control}
-        name="gstin"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.inputWrapper}>
-            <Input
-              label={t('ad_submit.gstin_number')}
-              value={value ?? ''}
-              onChangeText={onChange}
-              placeholder={t('ad_submit.gstin_placeholder')}
-              maxLength={15}
-              autoCapitalize="characters"
-            />
-            {errors.gstin && (
-              <Text style={styles.errorText}>{errors.gstin.message}</Text>
+          <Controller
+            control={control}
+            name="phone"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.inputWrapper}>
+                <Input
+                  label={t('ad_submit.whatsapp_number') + ' *'}
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder={t('common.placeholder_phone')}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  helperText={t('ad_submit.whatsapp_hint')}
+                />
+                {errors.phone && (
+                  <Text style={styles.errorText}>{errors.phone.message}</Text>
+                )}
+              </View>
             )}
-          </View>
-        )}
-      />
+          />
 
-      <Controller
-        control={control}
-        name="websiteUrl"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.inputWrapper}>
-            <Input
-              label={t('ad_submit.website_url')}
-              value={value ?? ''}
-              onChangeText={onChange}
-              placeholder="https://yourwebsite.com"
-              keyboardType="url"
-              autoCapitalize="none"
-            />
-            {errors.websiteUrl && (
-              <Text style={styles.errorText}>{errors.websiteUrl.message}</Text>
+          <Text style={styles.sectionLabel}>{t('ad_submit.optional_details')}</Text>
+          <Text style={styles.sectionHint}>{t('ad_submit.optional_hint')}</Text>
+
+          <Controller
+            control={control}
+            name="gstin"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.inputWrapper}>
+                <Input
+                  label={t('ad_submit.gstin_number')}
+                  value={value ?? ''}
+                  onChangeText={onChange}
+                  placeholder={t('ad_submit.gstin_placeholder')}
+                  maxLength={15}
+                  autoCapitalize="characters"
+                />
+              </View>
             )}
-          </View>
-        )}
-      />
+          />
 
-      <Controller
-        control={control}
-        name="mapsUrl"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.inputWrapper}>
-            <Input
-              label={t('ad_submit.maps_url')}
-              value={value ?? ''}
-              onChangeText={onChange}
-              placeholder="https://maps.app.goo.gl/..."
-              keyboardType="url"
-              autoCapitalize="none"
-            />
-            {errors.mapsUrl && (
-              <Text style={styles.errorText}>{errors.mapsUrl.message}</Text>
+          <Controller
+            control={control}
+            name="websiteUrl"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.inputWrapper}>
+                <Input
+                  label={t('ad_submit.website_url')}
+                  value={value ?? ''}
+                  onChangeText={onChange}
+                  placeholder="https://yourwebsite.com"
+                  keyboardType="url"
+                  autoCapitalize="none"
+                />
+              </View>
             )}
-          </View>
-        )}
-      />
+          />
 
-      {/* ─── Submit ──────────────────────────────── */}
-      <Button
-        title={t('common.save_changes')}
-        onPress={handleSubmit(onSubmit)}
-        fullWidth
-        disabled={isUploadingPhoto || isSubmitting}
-        style={styles.submitButton}
-      />
+          <Controller
+            control={control}
+            name="mapsUrl"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.inputWrapper}>
+                <Input
+                  label={t('ad_submit.maps_url')}
+                  value={value ?? ''}
+                  onChangeText={onChange}
+                  placeholder="https://maps.app.goo.gl/..."
+                  keyboardType="url"
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
+          />
+        </Animated.View>
 
-      <Button
-        title={t('common.go_back')}
-        onPress={() => router.back()}
-        variant="ghost"
-        fullWidth
-        disabled={isUploadingPhoto || isSubmitting}
-      />
-    </ScrollView>
+        <Animated.View entering={FadeInUp.delay(400).duration(600)} style={styles.footer}>
+          <TouchableOpacity 
+            style={[styles.primaryBtn, isSubmitting && { opacity: 0.7 }]} 
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting || isUploadingPhoto}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.primaryBtnText}>{t('common.save_changes')}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.cancelBtn} 
+            onPress={() => router.back()}
+          >
+            <Text style={styles.cancelBtnText}>{t('common.go_back')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: ThemeColors.creamBase,
   },
-  content: {
-    padding: Spacing['2xl'],
-    paddingBottom: 48,
-  },
-  backRow: {
+  headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: Spacing.xl,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
-  backText: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
+  backBtn: {
+    padding: 8,
+    marginLeft: -8,
   },
-  title: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.heavy,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
+  headerTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 22,
+    color: '#FFF',
+    marginLeft: 12,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 10,
+    paddingBottom: 60,
   },
   subtitle: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing['2xl'],
-    lineHeight: 20,
+    fontFamily: Fonts.regular,
+    fontSize: 15,
+    color: ThemeColors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  formCard: {
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.xl,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    marginBottom: 32,
   },
   sectionLabel: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.sm,
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: ThemeColors.brandDark,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
+    marginTop: 8,
   },
   sectionHint: {
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    marginBottom: Spacing.md,
-    marginTop: -Spacing.xs,
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: ThemeColors.textMuted,
+    marginTop: -8,
+    marginBottom: 16,
   },
   photoPicker: {
     width: '100%',
     height: 180,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: Colors.primary,
-    marginBottom: Spacing['2xl'],
+    borderColor: ThemeColors.brandLight,
+    marginBottom: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primaryPale,
+    backgroundColor: 'rgba(201,136,58,0.05)',
   },
   photoPreview: {
     width: '100%',
@@ -443,24 +457,52 @@ const styles = StyleSheet.create({
   },
   photoPlaceholder: {
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 8,
   },
   photoHint: {
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-    fontWeight: FontWeight.medium,
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: ThemeColors.brandLight,
   },
   inputWrapper: {
-    marginBottom: Spacing.md,
-  },
-  submitButton: {
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.md,
+    marginBottom: 20,
   },
   errorText: {
-    color: Colors.danger,
-    fontSize: FontSize.sm,
-    marginTop: 4,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.creditRed,
+    fontSize: 11,
+    marginTop: 6,
     marginLeft: 4,
+  },
+  footer: {
+    gap: 12,
+  },
+  primaryBtn: {
+    backgroundColor: ThemeColors.brandDark,
+    height: 60,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  primaryBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 16,
+    color: '#FFF',
+  },
+  cancelBtn: {
+    height: 60,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 14,
+    color: ThemeColors.textSecondary,
   },
 });

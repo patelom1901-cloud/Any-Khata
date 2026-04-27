@@ -1,62 +1,61 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCustomer, getCustomerDayLogs, addGotEntryToDayLog, recalcAndUpdateCustomerBalance } from '../../../../../lib/database';
-import { BalanceSummary } from '../../../../../components/business/BalanceSummary';
-import { DayLogCard } from '../../../../../components/business/DayLogCard';
-import { LoadingSpinner } from '../../../../../components/ui/LoadingSpinner';
-import { EmptyState } from '../../../../../components/ui/EmptyState';
-import { Button } from '../../../../../components/ui/Button';
-import { Input } from '../../../../../components/ui/Input';
-import { Colors, FontSize, FontWeight, Spacing } from '../../../../../constants/colors';
-// businessStore not needed here — business_id is read from the fetched customer object
-import { getTodayString } from '../../../../../utils/dateUtils';
-import type { Customer, DayLog } from '../../../../../types';
-import { useTranslation } from "../../../../../hooks/useTranslation";
-import { isValidAmount } from '../../../../../utils/currencyUtils';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Modal,
+  Dimensions,
+  SafeAreaView,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  TextInput,
+  TouchableOpacity
+} from 'react-native';
+import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, recalcAndUpdateCustomerBalance, softDeleteDayLogEntry, softDeleteDayLog } from '@/lib/database';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useEntryStore } from '@/store/entryStore';
+import { getTodayString } from '@/utils/dateUtils';
+import type { Customer, DayLog, DayEntry } from '@/types';
+import { useTranslation } from "@/hooks/useTranslation";
+import { isValidAmount } from '@/utils/currencyUtils';
+import { ParticleEffect } from '@/components/ParticleEffect';
+import Animated, { FadeInDown, FadeInUp, FadeInRight, Layout } from 'react-native-reanimated';
+import { Colors as ThemeColors, Fonts, Radius } from '@/constants/theme';
+import { DraggableDeletionWrapper } from '@/components/DraggableDeletionWrapper';
+
+const { width } = Dimensions.get('window');
 
 export default function CustomerDetailScreen() {
   const { t } = useTranslation();
   const { customerId } = useLocalSearchParams<{ customerId: string }>();
+  const setEditingEntry = useEntryStore(state => state.setEditingEntry);
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Got Entry Modal State
-  const [isGotModalVisible, setIsGotModalVisible] = useState(false);
-  const [gotAmount, setGotAmount] = useState('');
-  const [gotNote, setGotNote] = useState('');
-  const [savingGot, setSavingGot] = useState(false);
+  // Deletion State
+  const [isDeletingMode, setIsDeletingMode] = useState(false);
+  const [dustbinLayout, setDustbinLayout] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
+  const [shatteringCard, setShatteringCard] = useState<{ layout: { x: number, y: number, width: number, height: number }, color: string } | null>(null);
+  const lastActiveLayout = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!customerId) return;
     try {
-      const [cust, rawLogs] = await Promise.all([
+      const [cust, logs] = await Promise.all([
         getCustomer(customerId),
-        getCustomerDayLogs(customerId),
+        getDayLogsForCustomer(undefined, customerId),
       ]);
       setCustomer(cust);
-      // Parse entries JSON string → array for each day_log
-      const parsedLogs = (rawLogs || []).map((doc: any) => ({
-        dayLogId: doc.$id,
-        businessId: doc.business_id,
-        customerId: doc.customer_id,
-        date: doc.date,
-        dayTotal: typeof doc.day_total === 'number' && !isNaN(doc.day_total) ? doc.day_total : 0,
-        isLocked: doc.is_locked || false,
-        createdAt: doc.created_at,
-        entries: (() => {
-          try {
-            const raw = doc.entries;
-            return Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
-          } catch {
-            return [];
-          }
-        })(),
-      }));
-      setDayLogs(parsedLogs);
+      setDayLogs(logs);
     } catch (err: any) {
       Alert.alert(t(`Error`), err.message || t(`Failed to load customer`));
     } finally {
@@ -64,36 +63,32 @@ export default function CustomerDetailScreen() {
     }
   }, [customerId, t]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
-  const handleRecordGot = async () => {
-    const amount = parseFloat(gotAmount);
-    if (!isValidAmount(amount)) {
-      Alert.alert(t(`Error`), t(`Enter a valid amount`));
-      return;
-    }
-    // Use business_id from the fetched customer (always available by this point)
-    const business_id = customer?.businessId;
-    if (!business_id || !customerId || !amount) {
-      Alert.alert(t(`Error`), t(`Missing required data`));
-      return;
-    }
+  const handleEditEntry = (entry: DayEntry, dayLogId: string) => {
+    setEditingEntry(entry, dayLogId);
+    router.push(`/(tabs)/business/customers/${customerId}/add-entry`);
+  };
 
-    setSavingGot(true);
+  const handleDeleteEntry = async (entry: DayEntry, dayLogId: string) => {
+    if (!customerId || !lastActiveLayout.current) return;
+
+    setShatteringCard({
+      layout: lastActiveLayout.current,
+      color: ThemeColors.creditRed
+    });
+    setIsDeletingMode(false);
+
     try {
-      await addGotEntryToDayLog(customerId, business_id, amount, gotNote.trim());
+      await softDeleteDayLogEntry(dayLogId, entry.id);
       await recalcAndUpdateCustomerBalance(customerId);
-      Alert.alert(t(`Success`), t(`Payment recorded successfully!`));
-      setIsGotModalVisible(false);
-      setGotAmount('');
-      setGotNote('');
-      fetchData(); // Refresh ledger
+      await fetchData();
     } catch (err: any) {
-      Alert.alert(t(`Error`), err.message || t(`Failed to record payment`));
-    } finally {
-      setSavingGot(false);
+      Alert.alert(t('Error'), err.message || t('Failed to delete entry'));
     }
   };
 
@@ -104,8 +99,8 @@ export default function CustomerDetailScreen() {
   let totalGot = 0;
   dayLogs.forEach((log) => {
     (log.entries || []).forEach((entry: any) => {
+      if (entry.is_deleted) return;
       const amt = Number(entry.amount) || 0;
-      // Handle both new 'gave'/'got' and legacy 'debit'/'credit'
       if (entry.type === 'gave' || entry.type === 'debit') {
         totalGave += amt;
       } else if (entry.type === 'got' || entry.type === 'credit') {
@@ -115,210 +110,410 @@ export default function CustomerDetailScreen() {
   });
 
   const totalDue = totalGave - totalGot;
-  
+  const balanceColor = totalDue > 0 ? ThemeColors.creditRed : ThemeColors.paymentGreen;
+
   const todayString = getTodayString();
   const todayLog = dayLogs.find(l => l.date === todayString);
   const isTodayLocked = todayLog?.isLocked;
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.name}>{customer.name}</Text>
-          <Text style={styles.phone}>{customer.phone}</Text>
-          {customer.linkCode && (
-            <Text style={[styles.phone, { color: Colors.primary, marginTop: 2, fontWeight: '600' }]}>
-              Link code: {customer.linkCode}
-            </Text>
-          )}
-        </View>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Balance Summary */}
-      <BalanceSummary 
-        totalBilled={totalGave} 
-        totalPaid={totalGot} 
-        totalDue={totalDue} 
-      />
-
-      {/* Action Buttons */}
-      {!isTodayLocked && (
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.entryButton]}
-            onPress={() =>
-              router.push(`/(tabs)/business/customers/${customerId}/add-entry`)
-            }
-          >
-            <MaterialCommunityIcons name="plus-circle" size={20} color={Colors.white} />
-            <Text style={styles.actionButtonText}>{t(`Add Entry`)} (Gave)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.paymentButton]}
-            onPress={() => setIsGotModalVisible(true)}
-          >
-            <MaterialCommunityIcons name="cash-check" size={20} color={Colors.white} />
-            <Text style={styles.actionButtonText}>{t(`Record Payment`)} (Got)</Text>
-          </TouchableOpacity>
-        </View>
+      {/* SHATTERING ANIMATION OVERLAY */}
+      {shatteringCard && (
+        <ParticleEffect
+          layout={shatteringCard.layout}
+          color={shatteringCard.color}
+          onComplete={() => setShatteringCard(null)}
+        />
       )}
 
-      {/* Day Logs */}
-      <ScrollView style={styles.logsList} showsVerticalScrollIndicator={false}>
+      {/* FLOATING DUSTBIN */}
+      {isDeletingMode && dustbinLayout && (
+        <Animated.View
+          entering={FadeInDown.duration(200)}
+          style={{
+            position: 'absolute',
+            left: dustbinLayout.x,
+            top: dustbinLayout.y,
+            width: dustbinLayout.width,
+            height: dustbinLayout.height,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 30,
+            backgroundColor: 'rgba(173, 40, 40, 0.15)',
+            zIndex: 9999,
+          }}
+        >
+          <MaterialIcons name="delete-sweep" size={32} color={ThemeColors.creditRed} />
+        </Animated.View>
+      )}
+
+      {/* PREMIUM HEADER */}
+      <Animated.View
+        entering={FadeInUp.duration(400).springify()}
+        style={styles.header}
+      >
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <MaterialIcons name="arrow-back" size={24} color={ThemeColors.brandDark} />
+        </TouchableOpacity>
+
+        <View style={styles.headerInfo}>
+          <Text style={styles.customerName}>{customer.name}</Text>
+          <Text style={styles.customerPhone}>{customer.phone || t('No phone')}</Text>
+        </View>
+
+        {/* DARK BALANCE CARD */}
+        <View style={styles.balanceBadge}>
+          <Text style={styles.balanceLabel}>{t('Balance')}</Text>
+          <Text style={[styles.balanceAmount, { color: ThemeColors.textOnDark }]}>
+            ₹{totalDue.toLocaleString('en-IN')}
+          </Text>
+        </View>
+      </Animated.View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.actionGrid}>
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: ThemeColors.creditRed }]}
+            onPress={() => router.push(`/(tabs)/business/customers/${customerId}/add-entry`)}
+          >
+            <MaterialIcons name="add-shopping-cart" size={24} color="#FFF" />
+            <Text style={styles.actionText}>{t('GAVE')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: ThemeColors.paymentGreen }]}
+            onPress={() => router.push(`/(tabs)/business/customers/${customerId}/add-payment`)}
+          >
+            <MaterialIcons name="account-balance-wallet" size={24} color="#FFF" />
+            <Text style={styles.actionText}>{t('GOT')}</Text>
+          </TouchableOpacity>
+        </View>
+
         {dayLogs.length === 0 ? (
-          <EmptyState message="No entries yet" description="Tap 'Add Entry' to record today's transactions" icon="📝" />
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="receipt-long" size={56} color={ThemeColors.creamBorder} />
+            <Text style={styles.emptyText}>{t('No entries for this customer')}</Text>
+          </View>
         ) : (
-          dayLogs.map((log) => (
-            <DayLogCard
-              key={log.dayLogId}
-              dayLog={log}
-              onAddEntry={() =>
-                router.push(`/(tabs)/business/customers/${customerId}/add-entry`)
-              }
-            />
-          ))
+          dayLogs.map((log, logIdx) => {
+            const isLocked = log.isLocked;
+            const logDate = new Date(log.date);
+            const formattedDate = logDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+            let dayTotalGave = 0;
+            let dayTotalGot = 0;
+            (log.entries || []).forEach((e: any) => {
+              if (e.is_deleted) return;
+              const amt = Number(e.amount) || 0;
+              if (e.type === 'gave' || e.type === 'debit') dayTotalGave += amt;
+              else dayTotalGot += amt;
+            });
+            const dayNet = dayTotalGave - dayTotalGot;
+
+            return (
+              <Animated.View
+                key={log.dayLogId}
+                entering={FadeInDown.delay(100 + logIdx * 100).springify()}
+                style={[styles.logSection, isLocked && { opacity: 0.6 }]}
+              >
+                <View style={styles.dateHeader}>
+                  <Text style={styles.dateText}>{formattedDate}</Text>
+                  {isLocked && (
+                    <View style={styles.lockBadge}>
+                      <MaterialIcons name="lock" size={12} color="#666" />
+                      <Text style={styles.lockText}>LOCKED</Text>
+                    </View>
+                  )}
+                </View>
+
+                {(log.entries || []).map((entry: any, entryIdx: number) => {
+                  if (entry.is_deleted) return null;
+                  const isGave = entry.type === 'gave' || entry.type === 'debit';
+                  const amountColor = isGave ? ThemeColors.creditRed : ThemeColors.paymentGreen;
+
+                  return (
+                    <Animated.View
+                      key={entry.id}
+                      entering={FadeInRight.delay(200 + entryIdx * 50).springify()}
+                      layout={Layout.springify()}
+                    >
+                      <DraggableDeletionWrapper
+                        dustbinLayout={dustbinLayout}
+                        onActivate={(layout) => {
+                          if (isLocked) return;
+                          setIsDeletingMode(true);
+                          lastActiveLayout.current = layout;
+                          setDustbinLayout({
+                            x: width - 80,
+                            y: layout.y,
+                            width: 60,
+                            height: 60
+                          });
+                        }}
+                        onDeactivate={() => setIsDeletingMode(false)}
+                        onDelete={() => handleDeleteEntry(entry, log.dayLogId)}
+                        disabled={isLocked}
+                      >
+                        <TouchableOpacity
+                          style={styles.entryCard}
+                          onPress={() => !isLocked && handleEditEntry(entry, log.dayLogId)}
+                          activeOpacity={isLocked ? 1 : 0.7}
+                        >
+                          <View style={[styles.entryIndicator, { backgroundColor: amountColor }]} />
+
+                          <View style={styles.entryMain}>
+                            <Text style={styles.entryDesc}>
+                              {entry.description || (isGave ? t('Items given') : t('Payment received'))}
+                            </Text>
+                            <Text style={styles.entryTime}>
+                              {entry.time || 'Entry'}
+                            </Text>
+                          </View>
+
+                          <View style={styles.entryRight}>
+                            <Text style={[styles.entryAmount, { color: amountColor }]}>
+                              {isGave ? '' : '-'}₹{Number(entry.amount).toLocaleString('en-IN')}
+                            </Text>
+                            {!isLocked && (
+                              <MaterialIcons name="edit" size={14} color={ThemeColors.textMuted} style={{ marginTop: 4 }} />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      </DraggableDeletionWrapper>
+                    </Animated.View>
+                  );
+                })}
+
+                <View style={styles.dayFooter}>
+                  <Text style={styles.footerLabel}>{t('Day Net')}</Text>
+                  <Text style={styles.footerValue}>₹{dayNet.toLocaleString('en-IN')}</Text>
+                </View>
+              </Animated.View>
+            );
+          })
         )}
       </ScrollView>
 
-      {/* Got Entry Modal */}
-      <Modal
-        visible={isGotModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsGotModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{t(`Record Payment`)} (Got)</Text>
-            <Text style={styles.modalSubtitle}>{t(`Enter the amount received from customer.`)}</Text>
-            
-            <Input
-              label={t(`Amount (₹)`)}
-              value={gotAmount}
-              onChangeText={setGotAmount}
-              placeholder="0"
-              keyboardType="decimal-pad"
-              autoFocus
-            />
-            
-            <Input
-              label={t(`Note (Optional)`)}
-              value={gotNote}
-              onChangeText={setGotNote}
-              placeholder={t(`e.g. Received via GPay`)}
-            />
-
-            <View style={styles.modalActions}>
-              <Button
-                title={t(`Cancel`)}
-                onPress={() => setIsGotModalVisible(false)}
-                variant="ghost"
-                style={{ flex: 1 }}
-              />
-              <Button
-                title={t(`Save`)}
-                onPress={handleRecordGot}
-                loading={savingGot}
-                style={{ flex: 2 }}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      {/* FAB FOR ADDING ENTRY */}
+      {!isTodayLocked && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push(`/(tabs)/business/customers/${customerId}/add-entry`)}
+          activeOpacity={0.9}
+        >
+          <MaterialIcons name="add" size={32} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: ThemeColors.creamBase,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: ThemeColors.creamBorder,
   },
-  backButton: {
-    padding: Spacing.xs,
+  backBtn: {
+    padding: 8,
+    marginLeft: -8,
   },
   headerInfo: {
     flex: 1,
+    marginLeft: 12,
   },
-  name: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
+  customerName: {
+    fontFamily: Fonts.bold,
+    fontSize: 18,
+    color: ThemeColors.brandDark,
   },
-  phone: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+  customerPhone: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: ThemeColors.textSecondary,
+    marginTop: 2,
   },
-  actions: {
+  balanceBadge: {
+    backgroundColor: ThemeColors.brandDark,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    alignItems: 'flex-end',
+  },
+  balanceLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  balanceAmount: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 120,
+  },
+  actionGrid: {
     flexDirection: 'row',
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    gap: 12,
+    marginBottom: 24,
   },
-  actionButton: {
+  actionCard: {
     flex: 1,
-    flexDirection: 'row',
+    padding: 20,
+    borderRadius: Radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: 12,
-    gap: Spacing.xs,
-  },
-  entryButton: {
-    backgroundColor: Colors.primary,
-  },
-  paymentButton: {
-    backgroundColor: Colors.success,
-  },
-  actionButtonText: {
-    color: Colors.white,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-  },
-  logsList: {
-    flex: 1,
-    paddingHorizontal: Spacing.sm,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: Spacing.xl,
-  },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    padding: Spacing.xl,
-    borderRadius: 20,
-    elevation: 5,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  modalTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
+  actionText: {
+    color: '#FFF',
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    marginTop: 8,
+    letterSpacing: 1,
   },
-  modalSubtitle: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
+  emptyContainer: {
+    padding: 60,
+    alignItems: 'center',
   },
-  modalActions: {
+  emptyText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 15,
+    color: ThemeColors.textSecondary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  logSection: {
+    marginBottom: 24,
+  },
+  dateHeader: {
     flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  dateText: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: ThemeColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  lockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ThemeColors.creamBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lockText: {
+    fontFamily: Fonts.bold,
+    fontSize: 9,
+    color: '#666',
+    marginLeft: 4,
+  },
+  entryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ThemeColors.creamCard,
+    padding: 16,
+    borderRadius: Radius.lg,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+  },
+  entryIndicator: {
+    width: 6,
+    height: 32,
+    borderRadius: 3,
+  },
+  entryMain: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  entryDesc: {
+    fontFamily: Fonts.semibold,
+    fontSize: 14,
+    color: ThemeColors.textPrimary,
+  },
+  entryTime: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: ThemeColors.textMuted,
+    marginTop: 2,
+  },
+  entryRight: {
+    alignItems: 'flex-end',
+  },
+  entryAmount: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+  },
+  dayFooter: {
+    backgroundColor: 'rgba(201,136,58,0.05)',
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  footerLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: ThemeColors.brandMid,
+  },
+  footerValue: {
+    fontFamily: Fonts.display,
+    fontSize: 15,
+    color: ThemeColors.textPrimary,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: ThemeColors.brandDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
   },
 });

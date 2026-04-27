@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
+import { router, Stack } from 'expo-router';
 import { useBusinessStore } from '../../../store/businessStore';
-import { Colors, FontSize, FontWeight, Spacing } from '../../../constants/colors';
 import { databases } from '../../../lib/appwrite';
 import { DB_ID, COL_BUSINESSES } from '../../../constants/appwrite';
 import { useTranslation } from "../../../hooks/useTranslation";
 import { isValidIndianPhone } from '../../../utils/whatsappUtils';
+import { Colors as ThemeColors, Fonts, Radius } from '@/constants/theme';
+import { WavyHeader } from '@/components/ui/WavyHeader';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function EditBusinessScreen() {
   const { t } = useTranslation();
@@ -37,7 +38,7 @@ export default function EditBusinessScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3],
+        aspect: [16, 9],
         quality: 0.7,
       });
 
@@ -130,132 +131,277 @@ export default function EditBusinessScreen() {
     }
   };
 
-  const handleCancel = () => {
-    router.back();
-  };
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{t('Edit Business Details')}</Text>
-
-      <View style={styles.form}>
-        {/* ── Store Photo Picker ── */}
-        <TouchableOpacity
-          style={styles.photoPicker}
-          onPress={handlePickAndUploadPhoto}
-          disabled={isUploadingPhoto}
-          activeOpacity={0.75}
-        >
-          {isUploadingPhoto ? (
-            <ActivityIndicator size="large" color={Colors.primary} />
-          ) : storePhotoUrl ? (
-            <Image
-              source={{ uri: storePhotoUrl }}
-              style={styles.photoPreview}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <Text style={styles.cameraIcon}>📷</Text>
-              <Text style={styles.photoHint}>{t('Tap to add store photo')}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <Input
-          label={t('Business Name')}
-          value={businessName}
-          onChangeText={setBusinessName}
-          placeholder={t('e.g., Ramesh Tea Stall')}
-        />
-        <Input
-          label={t('Owner Name')}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder={t('e.g., Ramesh Kumar')}
-        />
-        <Input
-          label={t('Phone Number')}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder={t('10-digit mobile number')}
-          keyboardType="phone-pad"
-          maxLength={10}
-        />
-
-        <View style={styles.buttonContainer}>
-          <Button
-            title={t('Cancel')}
-            onPress={handleCancel}
-            variant="outline"
-            disabled={loading}
-            style={styles.button}
-          />
-          <Button
-            title={t('Save')}
-            onPress={handleSave}
-            disabled={loading}
-            style={styles.button}
-          />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      <WavyHeader>
+        <View style={styles.headerInner}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('Edit Business Details')}</Text>
         </View>
-      </View>
-    </ScrollView>
+      </WavyHeader>
+
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <Animated.View entering={FadeInDown.duration(600)} style={styles.content}>
+          
+          <View style={styles.card}>
+            {/* ── Store Photo Picker ── */}
+            <TouchableOpacity
+              style={styles.photoPicker}
+              onPress={handlePickAndUploadPhoto}
+              disabled={isUploadingPhoto}
+              activeOpacity={0.8}
+            >
+              {isUploadingPhoto ? (
+                <ActivityIndicator size="large" color={ThemeColors.brandLight} />
+              ) : storePhotoUrl ? (
+                <View style={styles.imageContainer}>
+                  <Image source={{ uri: storePhotoUrl }} style={styles.photoPreview} />
+                  <View style={styles.imageOverlay}>
+                    <MaterialIcons name="photo-camera" size={24} color="#FFF" />
+                    <Text style={styles.imageOverlayText}>{t('Change Photo')}</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="images-outline" size={48} color={ThemeColors.brandMid} opacity={0.5} />
+                  <Text style={styles.photoHint}>{t('ad_submit.tap_to_upload')}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Business Name')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="store" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputPlaceholderLabel}>{t('ad_submit.business_name')}</Text>
+                  <TextInput 
+                    style={styles.input}
+                    value={businessName}
+                    onChangeText={setBusinessName}
+                    placeholder={t('e.g., Ramesh Tea Stall')}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Owner Name')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="person" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputPlaceholderLabel}>{t('ad_submit.owner_name')}</Text>
+                  <TextInput 
+                    style={styles.input}
+                    value={ownerName}
+                    onChangeText={setOwnerName}
+                    placeholder={t('e.g., Ramesh Kumar')}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Phone Number')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="phone" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputPlaceholderLabel}>{t('ad_submit.whatsapp_number')}</Text>
+                  <TextInput 
+                    style={styles.input}
+                    value={phone}
+                    onChangeText={setPhone}
+                    placeholder={t('10-digit mobile number')}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.actions}>
+              <TouchableOpacity 
+                style={[styles.button, styles.btnOutline]} 
+                onPress={() => router.back()}
+                disabled={loading}
+              >
+                <Text style={[styles.btnText, { color: ThemeColors.brandMid }]}>{t('Cancel')}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.button, styles.btnPrimary]} 
+                onPress={handleSave}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={[styles.btnText, { color: '#FFF' }]}>{t('Save')}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: ThemeColors.creamBase,
+  },
+  headerInner: {
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 20,
+    color: '#FFF',
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   content: {
-    padding: Spacing['2xl'],
+    padding: 20,
   },
-  title: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing['2xl'],
-  },
-  form: {
-    gap: Spacing.sm,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  button: {
-    flex: 1,
+  card: {
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.xl,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   photoPicker: {
     width: '100%',
     height: 180,
-    borderRadius: 12,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: Colors.primary,
-    marginBottom: Spacing.sm,
+    borderColor: ThemeColors.brandLight,
+    marginBottom: 24,
+    backgroundColor: 'rgba(201,136,58,0.03)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface || Colors.background,
+  },
+  imageContainer: {
+    width: '100%',
+    height: '100%',
   },
   photoPreview: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageOverlayText: {
+    color: '#FFF',
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    marginTop: 4,
   },
   photoPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.xs || 4,
-  },
-  cameraIcon: {
-    fontSize: 36,
   },
   photoHint: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: 4,
+    fontFamily: Fonts.semibold,
+    fontSize: 14,
+    color: ThemeColors.brandMid,
+    marginTop: 12,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: ThemeColors.brandMid,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ThemeColors.creamBase,
+    borderRadius: Radius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  inputPlaceholderLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: ThemeColors.textMuted,
+    marginBottom: 2,
+  },
+  input: {
+    fontFamily: Fonts.regular,
+    fontSize: 15,
+    color: ThemeColors.textPrimary,
+    padding: 0,
+    height: 22,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 12,
+  },
+  button: {
+    flex: 1,
+    height: 52,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnOutline: {
+    borderWidth: 1.5,
+    borderColor: ThemeColors.brandMid,
+  },
+  btnPrimary: {
+    backgroundColor: ThemeColors.brandDark,
+  },
+  btnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
   },
 });

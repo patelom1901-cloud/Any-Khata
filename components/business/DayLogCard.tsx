@@ -1,23 +1,45 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { formatCurrency } from '../../utils/currencyUtils';
-import { formatRelativeDate, isEditAllowed } from '../../utils/dateUtils';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
-import type { DayLog } from '../../types';
-import { useTranslation } from "../../hooks/useTranslation";
+import { Colors, FontSize, FontWeight, Spacing } from '@/constants/colors';
+import { formatCurrency } from '@/utils/currencyUtils';
+import { formatRelativeDate, isEditAllowed } from '@/utils/dateUtils';
+import type { DayLog, DayEntry } from '@/types';
+import { useTranslation } from "@/hooks/useTranslation";
+import { DraggableDeletionWrapper } from '@/components/DraggableDeletionWrapper';
 
-interface Props {
+interface DayLogCardProps {
   dayLog: DayLog;
   onAddEntry?: () => void;
   onPress?: () => void;
+  onEditEntry?: (entry: DayEntry, dayLogId: string) => void;
+  onDeleteEntry?: (entry: DayEntry, dayLogId: string) => void;
+  onDeleteDayLog?: (dayLogId: string) => void;
+  dustbinLayout?: { x: number, y: number, width: number, height: number } | null;
+  onActivateDeletion?: (layout: { x: number, y: number, width: number, height: number }) => void;
+  onDeactivateDeletion?: () => void;
 }
 
-export const DayLogCard = ({ dayLog, onAddEntry, onPress }: Props) => {
-    const { t } = useTranslation();
+export const DayLogCard = ({ 
+  dayLog, 
+  onAddEntry, 
+  onPress,
+  onEditEntry, 
+  onDeleteEntry,
+  onDeleteDayLog,
+  dustbinLayout,
+  onActivateDeletion,
+  onDeactivateDeletion,
+}: DayLogCardProps) => {
+  const { t } = useTranslation();
   const editable = isEditAllowed(dayLog.date) && !dayLog.isLocked;
 
-  return (
+  // Filter out deleted entries
+  const activeEntries = (dayLog.entries || []).filter(e => !e.is_deleted);
+
+  if (activeEntries.length === 0 && !editable) return null;
+
+  const cardContent = (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
@@ -38,132 +60,181 @@ export const DayLogCard = ({ dayLog, onAddEntry, onPress }: Props) => {
             </View>
           ) : null}
         </View>
-        <Text style={styles.total}>{formatCurrency(dayLog.dayTotal)}</Text>
+        <View style={styles.totalContainer}>
+           <Text style={styles.totalLabel}>Total: </Text>
+           <Text style={styles.totalAmount}>{formatCurrency(dayLog.dayTotal)}</Text>
+        </View>
       </View>
 
-      <View style={styles.divider} />
+      <View style={styles.entriesList}>
+        {activeEntries.map((entry) => {
+          const entryContent = (
+            <View style={styles.entryRow}>
+              <View style={styles.entryMain}>
+                <Text style={styles.entryDescription}>{entry.description}</Text>
+                {entry.quantity && entry.quantity > 0 && (
+                  <Text style={styles.entryQty}>Qty: {entry.quantity}</Text>
+                )}
+              </View>
+              <View style={styles.entryRight}>
+                <Text style={[
+                  styles.entryAmount,
+                  entry.type === 'got' || entry.type === 'credit' ? styles.gotAmount : styles.gaveAmount
+                ]}>
+                  {entry.type === 'got' || entry.type === 'credit' ? '-' : ''}
+                  ₹{entry.amount.toLocaleString('en-IN')}
+                </Text>
+                {editable && onEditEntry && (
+                  <TouchableOpacity 
+                    onPress={() => onEditEntry(entry, dayLog.dayLogId)}
+                    style={styles.editButton}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={16} color={Colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          );
 
-      {dayLog.entries.map((entry) => (
-        <View key={entry.id} style={styles.entryContainer}>
-          <View style={styles.entryRow}>
-            <MaterialCommunityIcons 
-              name={entry.type === 'got' ? "arrow-down-circle" : "arrow-up-circle"} 
-              size={16} 
-              color={entry.type === 'got' ? Colors.success : Colors.primary} 
-              style={styles.entryIcon}
-            />
-            <Text style={styles.description} numberOfLines={1}>{entry.description}</Text>
-            <Text style={[
-              styles.amount, 
-              entry.type === 'got' && styles.gotAmount
-            ]}>
-              {entry.type === 'got' ? '-' : ''}{formatCurrency(entry.amount)}
-            </Text>
-            <Text style={styles.time}>{entry.time}</Text>
-          </View>
-          {entry.note ? (
-            <Text style={styles.note}>{t('daylog.note')}: {entry.note}</Text>
-          ) : null}
-        </View>
-      ))}
+          if (editable && onDeleteEntry && onActivateDeletion && onDeactivateDeletion) {
+            return (
+              <DraggableDeletionWrapper
+                key={entry.id}
+                dustbinLayout={dustbinLayout}
+                onActivate={onActivateDeletion}
+                onDeactivate={onDeactivateDeletion}
+                onDelete={() => onDeleteEntry(entry, dayLog.dayLogId)}
+              >
+                {entryContent}
+              </DraggableDeletionWrapper>
+            );
+          }
+
+          return <View key={entry.id}>{entryContent}</View>;
+        })}
+      </View>
 
       {editable && onAddEntry && (
-        <>
-          <View style={styles.divider} />
-          <TouchableOpacity style={styles.addEntryButton} onPress={onAddEntry} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="plus" size={18} color={Colors.primary} />
-            <Text style={styles.addEntryText}>{t('daylog.add_entry')}</Text>
-          </TouchableOpacity>
-        </>
+        <TouchableOpacity style={styles.addButton} onPress={onAddEntry}>
+          <MaterialCommunityIcons name="plus" size={16} color={Colors.primary} />
+          <Text style={styles.addButtonText}>{t(`Add Item`)}</Text>
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
+
+  // If the WHOLE card is draggable (only for live days)
+  if (editable && onDeleteDayLog && onActivateDeletion && onDeactivateDeletion) {
+    return (
+      <DraggableDeletionWrapper
+        dustbinLayout={dustbinLayout}
+        onActivate={onActivateDeletion}
+        onDeactivate={onDeactivateDeletion}
+        onDelete={() => onDeleteDayLog(dayLog.dayLogId)}
+      >
+        {cardContent}
+      </DraggableDeletionWrapper>
+    );
+  }
+
+  return cardContent;
 };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginHorizontal: Spacing.lg,
-    marginVertical: Spacing.xs,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   date: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
+    fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
   },
-  total: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.amountTotal,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: Spacing.sm,
-  },
-  entryContainer: {
-    paddingVertical: Spacing.xs,
-  },
-  entryRow: {
+  totalContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  entryIcon: {
-    marginRight: Spacing.sm,
+  totalLabel: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
   },
-  description: {
+  totalAmount: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  entriesList: {
+    gap: Spacing.sm,
+  },
+  entryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.surface,
+  },
+  entryMain: {
     flex: 1,
-    fontSize: FontSize.sm,
+  },
+  entryDescription: {
+    fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
-  amount: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
-    color: Colors.textPrimary,
-    marginLeft: Spacing.sm,
+  entryQty: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  entryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  entryAmount: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+  },
+  gaveAmount: {
+    color: Colors.danger,
   },
   gotAmount: {
     color: Colors.success,
   },
-  note: {
-    fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    paddingLeft: 24, // width of icon + marginRight
-    marginTop: 2,
+  editButton: {
+    padding: 4,
   },
-  time: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    marginLeft: Spacing.sm,
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  addEntryButton: {
+  addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
     gap: Spacing.xs,
   },
-  addEntryText: {
+  addButtonText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
     color: Colors.primary,

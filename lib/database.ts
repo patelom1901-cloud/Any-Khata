@@ -171,26 +171,33 @@ export const unlinkKhata = async (customerId: string): Promise<{ success: boolea
 // ─── Day Logs ────────────────────────────────────────────────
 
 export const getDayLogsForCustomer = async (
-  businessId: string,
+  businessId: string | undefined,
   customerId: string
 ): Promise<DayLog[]> => {
-  const res = await databases.listDocuments(DB_ID, COL_DAY_LOGS, [
-    Query.equal('business_id', businessId),
+  const queries = [
     Query.equal('customer_id', customerId),
     Query.orderDesc('date'),
     Query.limit(365),
-  ]);
+  ];
 
-  return res.documents.map((doc: any) => ({
-    dayLogId: doc.$id,
-    businessId: doc.business_id,
-    customerId: doc.customer_id,
-    date: doc.date,
-    dayTotal: doc.day_total || doc.total,
-    isLocked: doc.is_locked,
-    createdAt: doc.created_at,
-    entries: parseEntries(doc.entries),
-  })) as unknown as DayLog[];
+  if (businessId) {
+    queries.push(Query.equal('business_id', businessId));
+  }
+
+  const res = await databases.listDocuments(DB_ID, COL_DAY_LOGS, queries);
+
+  return res.documents
+    .filter((doc: any) => !doc.is_deleted) // Filter out soft-deleted logs
+    .map((doc: any) => ({
+      dayLogId: doc.$id,
+      businessId: doc.business_id,
+      customerId: doc.customer_id,
+      date: doc.date,
+      dayTotal: doc.day_total || doc.total || 0,
+      isLocked: doc.is_locked || false,
+      createdAt: doc.created_at,
+      entries: parseEntries(doc.entries),
+    })) as unknown as DayLog[];
 };
 
 export const getOrCreateDayLog = async (
@@ -208,6 +215,11 @@ export const getOrCreateDayLog = async (
 
   if (existing.documents.length > 0) {
     const doc = existing.documents[0] as any;
+    if (doc.is_deleted) {
+      // Reactivate if deleted today? Or just ignore.
+      // For now, let's just clear the deleted flag if they want to add something today.
+      await databases.updateDocument(DB_ID, COL_DAY_LOGS, doc.$id, { is_deleted: false });
+    }
     return {
       ...doc,
       dayLogId: doc.$id,
@@ -217,6 +229,7 @@ export const getOrCreateDayLog = async (
       isLocked: doc.is_locked,
       createdAt: doc.created_at,
       entries: parseEntries(doc.entries),
+      is_deleted: false,
     } as unknown as DayLog;
   }
 
@@ -671,15 +684,6 @@ export const createBusinessSubscription = async (data: {
 // These functions use the snake_case field names that the day_logs
 // collection actually stores (customer_id, business_id, is_locked, total).
 
-/** Fetch all day_logs for a single customer, sorted newest first. */
-export const getCustomerDayLogs = async (customerId: string): Promise<any[]> => {
-  const res = await databases.listDocuments(DB_ID, COL_DAY_LOGS, [
-    Query.equal('customer_id', customerId),
-    Query.orderDesc('date'),
-    Query.limit(365),
-  ]);
-  return res.documents;
-};
 
 /** Create today's day_log, or append to it if one already exists. */
 export const upsertTodayDayLog = async (
@@ -718,9 +722,9 @@ export const upsertTodayDayLog = async (
 
     const existingEntries: any[] = JSON.parse(doc.entries || '[]');
     const updatedEntries = [...existingEntries, newEntry];
-    // day_total = sum of 'gave' entries only
+    // day_total = sum of 'gave' entries only (excluding soft-deleted)
     let newTotal = updatedEntries
-      .filter((e: any) => e.type === 'gave')
+      .filter((e: any) => e.type === 'gave' && !e.is_deleted)
       .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
     newTotal = Math.round(newTotal * 100) / 100;
     if (isNaN(newTotal)) newTotal = 0;
@@ -764,6 +768,7 @@ export const recalcAndUpdateCustomerBalance = async (customerId: string): Promis
   let totalGot = 0;
 
   for (const doc of res.documents) {
+    if ((doc as any).is_deleted) continue; // Skip deleted logs
     let entries: any[] = [];
     try {
       const raw = (doc as any).entries;
@@ -772,6 +777,7 @@ export const recalcAndUpdateCustomerBalance = async (customerId: string): Promis
       entries = [];
     }
     for (const e of entries) {
+      if (e.is_deleted) continue;
       const amt = Number(e.amount) || 0;
       if (e.type === 'gave' || e.type === 'debit') totalGave += amt;
       else if (e.type === 'got' || e.type === 'credit') totalGot += amt;
@@ -799,6 +805,24 @@ export const addGotEntryToDayLog = async (
   // Recalculate balance after adding got entry
   await recalcAndUpdateCustomerBalance(customerId);
 };
+
+/**
+ * Soft-delete an entire day_log.
+ * Only allowed if day_log is not locked (today's entries only).
+ */
+export const softDeleteDayLog = async (dayLogId: string): Promise<void> => {
+  const doc = await databases.getDocument(DB_ID, COL_DAY_LOGS, dayLogId);
+
+  if ((doc as any).is_locked) {
+    throw new Error('This day is locked. Past records cannot be deleted.');
+  }
+
+  await databases.updateDocument(DB_ID, COL_DAY_LOGS, dayLogId, {
+    is_deleted: true,
+  });
+};
+
+
 
 /**
  * Verifies a payment with Cashfree (or assumes success if callback reached)
@@ -852,43 +876,37 @@ export const verifyAndActivateSubscription = async (
 /**
  * Update a specific entry in a day_log.
  * Only allowed if day_log is not locked (today's entries only).
+ * NOTE: Does NOT call recalcAndUpdateCustomerBalance internally to avoid race conditions.
  */
 export const updateDayLogEntry = async (
   dayLogId: string,
   entryId: string,
-  updates: { description?: string; amount?: number; type?: 'gave' | 'got' }
+  updates: { description?: string; amount?: number; type?: 'gave' | 'got' | 'debit' | 'credit'; quantity?: number }
 ): Promise<void> => {
-  // Fetch the day_log
   const doc = await databases.getDocument(DB_ID, COL_DAY_LOGS, dayLogId);
 
   if ((doc as any).is_locked) {
     throw new Error('This day is locked. Past records cannot be edited.');
   }
 
-  // Parse entries
   const entries: any[] = JSON.parse((doc as any).entries || '[]');
-
-  // Find and update the entry
   const entryIndex = entries.findIndex((e: any) => e.id === entryId);
   if (entryIndex === -1) {
     throw new Error('Entry not found');
   }
 
   // Apply updates
-  if (updates.description !== undefined) {
-    entries[entryIndex].description = updates.description;
-  }
-  if (updates.amount !== undefined) {
-    entries[entryIndex].amount = updates.amount;
-  }
-  if (updates.type !== undefined) {
-    entries[entryIndex].type = updates.type;
-  }
+  if (updates.description !== undefined) entries[entryIndex].description = updates.description;
+  if (updates.amount !== undefined) entries[entryIndex].amount = updates.amount;
+  if (updates.type !== undefined) entries[entryIndex].type = updates.type;
+  if (updates.quantity !== undefined) entries[entryIndex].quantity = updates.quantity;
 
-  // Recalculate total
-  const newTotal = entries.reduce((sum: number, e: any) => sum + e.amount, 0);
+  // Recalculate day_total (gave entries only, not deleted)
+  let newTotal = entries
+    .filter((e: any) => e.type === 'gave' && !e.is_deleted)
+    .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  newTotal = Math.round(newTotal * 100) / 100;
 
-  // Update document
   await databases.updateDocument(DB_ID, COL_DAY_LOGS, dayLogId, {
     entries: JSON.stringify(entries),
     day_total: newTotal,
@@ -896,36 +914,37 @@ export const updateDayLogEntry = async (
 };
 
 /**
- * Delete a specific entry from a day_log.
+ * Soft-delete a specific entry from a day_log.
  * Only allowed if day_log is not locked (today's entries only).
+ * NOTE: Does NOT call recalcAndUpdateCustomerBalance internally to avoid race conditions.
  */
-export const deleteDayLogEntry = async (
+export const softDeleteDayLogEntry = async (
   dayLogId: string,
   entryId: string
 ): Promise<void> => {
-  // Fetch the day_log
   const doc = await databases.getDocument(DB_ID, COL_DAY_LOGS, dayLogId);
 
   if ((doc as any).is_locked) {
     throw new Error('This day is locked. Past records cannot be edited.');
   }
 
-  // Parse entries
   const entries: any[] = JSON.parse((doc as any).entries || '[]');
-
-  // Filter out the entry to delete
-  const updatedEntries = entries.filter((e: any) => e.id !== entryId);
-
-  if (updatedEntries.length === entries.length) {
+  const entryIndex = entries.findIndex((e: any) => e.id === entryId);
+  if (entryIndex === -1) {
     throw new Error('Entry not found');
   }
 
-  // Recalculate total
-  const newTotal = updatedEntries.reduce((sum: number, e: any) => sum + e.amount, 0);
+  // Mark as deleted
+  entries[entryIndex].is_deleted = true;
 
-  // Update document
+  // Recalculate day_total (gave entries only, not deleted)
+  let newTotal = entries
+    .filter((e: any) => e.type === 'gave' && !e.is_deleted)
+    .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  newTotal = Math.round(newTotal * 100) / 100;
+
   await databases.updateDocument(DB_ID, COL_DAY_LOGS, dayLogId, {
-    entries: JSON.stringify(updatedEntries),
+    entries: JSON.stringify(entries),
     day_total: newTotal,
   });
 };

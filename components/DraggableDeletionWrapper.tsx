@@ -16,6 +16,7 @@ interface DraggableDeletionWrapperProps {
   onActivate: (layout: { x: number, y: number, width: number, height: number }) => void;
   onDeactivate: () => void;
   dustbinLayout?: { x: number, y: number, width: number, height: number } | null;
+  disabled?: boolean;
 }
 
 export const DraggableDeletionWrapper = ({
@@ -24,6 +25,7 @@ export const DraggableDeletionWrapper = ({
   onActivate,
   onDeactivate,
   dustbinLayout,
+  disabled = false,
 }: DraggableDeletionWrapperProps) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -38,6 +40,7 @@ export const DraggableDeletionWrapper = ({
   };
 
   const panGesture = Gesture.Pan()
+    .enabled(!disabled)
     .activateAfterLongPress(1000)
     .onStart((event) => {
       isActive.value = true;

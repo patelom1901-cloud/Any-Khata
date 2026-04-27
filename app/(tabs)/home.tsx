@@ -28,14 +28,24 @@ import { formatCurrency } from '../../utils/currencyUtils';
 import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import { useTranslation } from "../../hooks/useTranslation";
 import { z } from 'zod';
+import { useAds } from '../../hooks/useAds';
+import AdCarousel from '../../components/ads/AdCarousel';
+import { BusinessModal } from '../../components/ads/BusinessModal';
+import type { Ad } from '../../types';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Animated, { FadeInDown, FadeInRight, FadeInUp, withTiming, withSpring, useSharedValue, useAnimatedStyle, Layout } from 'react-native-reanimated';
+import { WavyHeader } from '../../components/ui/WavyHeader';
+import { SectionLabel } from '../../components/ui/SectionLabel';
+import { CardWrapper } from '../../components/ui/CardWrapper';
+import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 
+
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  phone: z.string().length(10, 'Phone must be exactly 10 digits').regex(/^\d+$/, 'Must contain only digits'),
+  phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d+$/, 'Invalid phone number'),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -64,6 +74,9 @@ const HomeScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
   const [lastAddedLinkCode, setLastAddedLinkCode] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+  const { ads, isLoading: adsLoading } = useAds();
   
   // Deletion State
   const [isDeletingMode, setIsDeletingMode] = useState(false);
@@ -71,13 +84,14 @@ const HomeScreen = () => {
   const [shatteringCard, setShatteringCard] = useState<{ layout: { x: number, y: number, width: number, height: number }, color: string } | null>(null);
   const lastActiveLayout = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
 
-  const customerSchema = useMemo(() => z.object({
+  // Localized schema for form validation
+  const localizedCustomerSchema = useMemo(() => z.object({
     name: z.string().min(1, t('home.error_name_required')),
     phone: z.string().length(10, t('home.error_phone_length')).regex(/^\d+$/, t('home.error_phone_digits')),
   }), [t]);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerSchema),
+    resolver: zodResolver(localizedCustomerSchema),
     defaultValues: { name: '', phone: '' }
   });
 
@@ -249,12 +263,24 @@ const HomeScreen = () => {
     );
   }
 
+  const totalGiven = customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
+  const totalGot = customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* FLOATING DUSTBIN (RIGHT SIDE OF ACTIVE CARD) */}
+      {/* SHATTERING ANIMATION OVERLAY */}
+      {shatteringCard && (
+        <ParticleEffect 
+          layout={shatteringCard.layout}
+          color={shatteringCard.color}
+          onComplete={() => setShatteringCard(null)}
+        />
+      )}
+
+      {/* FLOATING DUSTBIN */}
       {isDeletingMode && dustbinLayout && (
         <View 
           style={{
@@ -266,105 +292,122 @@ const HomeScreen = () => {
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: 30,
-            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+            backgroundColor: 'rgba(173, 40, 40, 0.15)',
             zIndex: 9999,
           }}
         >
-          <MaterialIcons name="delete-sweep" size={32} color={Colors.danger} />
+          <MaterialIcons name="delete-sweep" size={32} color={ThemeColors.creditRed} />
         </View>
       )}
-      
-      {/* SECTION 1 — HEADER BAR */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          {user?.photo ? (
-            <Image source={{ uri: user.photo }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarInitial}>{userInitial}</Text>
-            </View>
-          )}
-          <Text style={styles.headerTitle}>{t('common.app_name')}</Text>
-        </View>
-
-        <TouchableOpacity style={styles.iconButton} onPress={() => searchInputRef.current?.focus()}>
-          <MaterialIcons name="search" size={24} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
 
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* SECTION 2 — GREETING */}
-        <View style={styles.greetingSection}>
-          <Text style={styles.greetingText}>{t('home.greeting')} {userName} 🙏</Text>
-          <Text style={styles.taglineText}>{t('home.tagline')}</Text>
-        </View>
-
-        {/* SECTION 3 — SUMMARY GRID */}
-        <View style={styles.summaryGrid}>
-          <View style={[styles.card, styles.cardOutstanding]}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardLabel}>{t('home.total_outstanding')}</Text>
-              <View style={[styles.iconContainer, { backgroundColor: 'rgba(198,40,40,0.1)' }]}>
-                <MaterialIcons name="account-balance-wallet" size={20} color={Colors.danger} />
-              </View>
-            </View>
-            <Text style={[styles.amountText, { color: summary.total > 0 ? Colors.danger : Colors.success }]}>
-              {formatCurrency(summary.total)}
+        {/* 1. WAVY HEADER */}
+        <WavyHeader>
+          <View style={styles.headerInner}>
+            <Text style={styles.greetingText}>
+              {t('home.greeting')}, {userName}
             </Text>
-            <Text style={styles.cardSubtitle}>
-              {hasBusiness 
-                ? `${t('home.across')} ${summary.count} ${t('home.active_customers')}` 
-                : `${t('home.across')} ${summary.count} ${t('home.linked_khatas')}`}
-            </Text>
-          </View>
-
-          <View style={[styles.card, styles.cardCollected]}>
+            <TouchableOpacity 
+              style={styles.searchBtnAbsolute}
+              onPress={() => setSearchVisible(!searchVisible)}
+            >
+              <MaterialIcons name={searchVisible ? "close" : "search"} size={22} color={ThemeColors.textOnDark} />
+            </TouchableOpacity>
             <View style={styles.headerRow}>
-              <Text style={styles.cardLabel}>{hasBusiness ? t('home.active_customers') : t('home.linked_shops')}</Text>
-              <View style={[styles.iconContainer, { backgroundColor: 'rgba(45,106,79,0.1)' }]}>
-                <MaterialIcons name={hasBusiness ? "people" : "store"} size={20} color={Colors.success} />
-              </View>
+              <Text style={styles.headerTitle}>{t('common.app_name')}</Text>
             </View>
-            <Text style={[styles.amountText, { color: Colors.success }]}>{summary.count}</Text>
-            <Text style={styles.cardSubtitle}>{t('home.active_records_msg')}</Text>
-          </View>
-        </View>
-
-        {/* OWNER BUSINESS CUSTOMERS SECTION */}
-        {hasBusiness && (
-          <View style={styles.businessSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t('home.business_customers')}</Text>
-            </View>
-
-            {/* SEARCH BAR */}
-            <View style={styles.searchBar}>
-              <MaterialIcons name="search" size={20} color={Colors.textMuted} />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                placeholder={t('home.search_placeholder')}
-                placeholderTextColor={Colors.textMuted}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
-              />
-              {searchQuery !== '' && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <MaterialIcons name="close" size={18} color={Colors.textMuted} />
-                </TouchableOpacity>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <Text style={styles.dateLabel}>
+                {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </Text>
+              {searchVisible && (
+                <Animated.View entering={FadeInRight} style={{ flex: 1, marginLeft: 12 }}>
+                  <TextInput
+                    autoFocus
+                    placeholder={t('home.search_placeholder') || "Search customers..."}
+                    placeholderTextColor={ThemeColors.textMuted}
+                    style={{ 
+                      backgroundColor: 'rgba(255,255,255,0.1)', 
+                      borderRadius: 8, 
+                      paddingHorizontal: 12, 
+                      paddingVertical: 4,
+                      color: '#FFF',
+                      fontSize: 12,
+                      fontFamily: Fonts.regular
+                    }}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                </Animated.View>
               )}
             </View>
+          </View>
+        </WavyHeader>
 
-            {/* FILTER CHIPS */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChips}
+        {/* 2.5 BUSINESS SLIDER (Moved above card) */}
+        {!adsLoading && ads.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+            <AdCarousel ads={ads} onAdPress={setSelectedAd} />
+          </Animated.View>
+        )}
+
+        {/* 2. BALANCE CARD */}
+        <Animated.View entering={FadeInDown.delay(300).duration(380).springify()}>
+          <CardWrapper style={{ marginTop: 0, padding: 18, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
+            <SectionLabel>{t('home.total_outstanding')}</SectionLabel>
+            <CountUpAmount 
+              value={summary.total} 
+              style={{ fontFamily: Fonts.display, fontSize: 40, color: ThemeColors.textPrimary, marginTop: 4 }} 
+            />
+            
+            <View style={{ height: 1, backgroundColor: '#F2E6DA', marginVertical: 14 }} />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              {/* Chip 1: Customers */}
+              <Animated.View 
+                entering={FadeInDown.delay(220).duration(300).springify()}
+                style={{ flex: 1, backgroundColor: '#FAF4EE', borderRadius: 11, padding: 10, marginRight: 8, alignItems: 'center' }}
+              >
+                <Text style={{ fontFamily: Fonts.display, fontSize: 22, color: ThemeColors.textPrimary }}>{summary.count}</Text>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.active_customers')}</Text>
+              </Animated.View>
+
+              {/* Chip 2: Given */}
+              <Animated.View 
+                entering={FadeInDown.delay(280).duration(300).springify()}
+                style={{ flex: 1, backgroundColor: '#FFF5F4', borderRadius: 11, padding: 10, marginRight: 8, alignItems: 'center', borderWidth: 1, borderColor: '#F8DADA' }}
+              >
+                <Text style={{ fontFamily: Fonts.display, fontSize: 22, color: ThemeColors.creditRed }}>₹{totalGiven.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.given') || 'GIVEN'}</Text>
+              </Animated.View>
+
+              {/* Chip 3: Got */}
+              <Animated.View 
+                entering={FadeInDown.delay(340).duration(300).springify()}
+                style={{ flex: 1, backgroundColor: '#F2FBF2', borderRadius: 11, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#BCD8BC' }}
+              >
+                <Text style={{ fontFamily: Fonts.display, fontSize: 22, color: ThemeColors.paymentGreen }}>₹{totalGot.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.got') || 'GOT'}</Text>
+              </Animated.View>
+            </View>
+          </CardWrapper>
+        </Animated.View>
+
+
+        {/* 3. RECENT CUSTOMERS SECTION */}
+        {hasBusiness && (
+          <>
+            <SectionLabel>{t('home.recent_customers') || 'Recent Customers'}</SectionLabel>
+            
+            {/* Filter Chips */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 12, paddingTop: 4 }}
             >
               {getFilters(t).map((filter) => {
                 const isActive = activeFilter === filter.key;
@@ -372,205 +415,258 @@ const HomeScreen = () => {
                   <TouchableOpacity
                     key={filter.key}
                     onPress={() => setActiveFilter(filter.key)}
-                    style={[
-                      styles.filterChip,
-                      isActive ? styles.filterChipActive : styles.filterChipInactive,
-                    ]}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 100,
+                      marginRight: 8,
+                      backgroundColor: isActive ? '#2A1206' : '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: isActive ? '#2A1206' : '#E4D0BC',
+                      elevation: isActive ? 2 : 0,
+                    }}
                   >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        isActive ? styles.filterChipTextActive : styles.filterChipTextInactive,
-                      ]}
-                    >
+                    <Text style={{
+                      fontFamily: Fonts.semibold,
+                      fontSize: 11,
+                      color: isActive ? '#FAF4EE' : '#9B7050',
+                    }}>
                       {filter.label}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-
-            {/* CUSTOMER CARDS LIST */}
-            <View style={styles.customerList}>
+            
+            <View style={{ paddingHorizontal: 14 }}>
               {filteredCustomers.length === 0 ? (
-                <View style={styles.emptyActivityState}>
-                  <MaterialIcons name="people-outline" size={48} color={Colors.textMuted} />
-                  <Text style={styles.emptyActivityTitle}>{t(`No customers found`)}</Text>
-                  <Text style={styles.emptyActivitySubtitle}>{t(`Add your first customer to get started`)}</Text>
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <MaterialIcons name="people-outline" size={48} color={ThemeColors.textSecondary} opacity={0.3} />
+                  <Text style={{ fontFamily: Fonts.semibold, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 12 }}>{t('No customers found')}</Text>
                 </View>
               ) : (
-                filteredCustomers.map((customer) => (
-                  <DraggableDeletionWrapper
-                    key={customer.id}
-                    dustbinLayout={dustbinLayout}
-                    onActivate={(layout) => {
-                      setIsDeletingMode(true);
-                      lastActiveLayout.current = layout;
-                      setDustbinLayout({
-                        x: width - 80,
-                        y: layout.y, // Match the exact absolute Y of the card
-                        width: 60,
-                        height: 60
-                      });
-                    }}
-                    onDeactivate={() => setIsDeletingMode(false)}
-                    onDelete={() => handleConfirmDelete(customer.id)}
-                  >
-                    <TouchableOpacity
-                      style={styles.customerCard}
-                      onPress={() => router.push(`/(tabs)/business/customers/${customer.id}` as any)}
-                      activeOpacity={0.85}
-                    >
-                      <View style={styles.cardLeft}>
-                        <View style={[styles.customerAvatar, { backgroundColor: customer.avatarBg }]}>
-                          <Text style={[styles.customerAvatarText, { color: customer.avatarText }]}>
-                            {customer.initials}
-                          </Text>
-                        </View>
-                        <View style={styles.cardInfo}>
-                          <Text style={styles.customerName}>{customer.name}</Text>
-                          {customer.linkCode && (
-                            <Text style={styles.linkCodeText}>Link code: {customer.linkCode}</Text>
-                          )}
-                          <View style={styles.cardPhoneRow}>
-                            <MaterialIcons name="call" size={14} color={Colors.textSecondary} />
-                            <Text style={styles.customerPhone}>{customer.phone}</Text>
-                          </View>
-                        </View>
-                      </View>
+                filteredCustomers.map((customer, index) => {
+                  const avatarStyles = [
+                    { bg: '#FDE8D0', fc: '#7D3E10' },
+                    { bg: '#E8F2FD', fc: '#1A4E7A' },
+                    { bg: '#E8FBF0', fc: '#1A6E3A' },
+                    { bg: '#F5E8FC', fc: '#6E2888' },
+                    { bg: '#FDF7E3', fc: '#8A7210' },
+                  ];
+                  const avatarColor = avatarStyles[index % 5];
 
-                      <View style={styles.cardRight}>
-                        <Text
-                          style={[
-                            styles.balanceText,
-                            { color: customer.balance > 0 ? Colors.danger : Colors.success },
-                          ]}
+                  return (
+                    <Animated.View 
+                      key={customer.id} 
+                      entering={FadeInRight.delay(300 + index * 40).springify()}
+                      layout={Layout.springify()}
+                    >
+                      <DraggableDeletionWrapper
+                        dustbinLayout={dustbinLayout}
+                        onActivate={(layout) => {
+                          setIsDeletingMode(true);
+                          lastActiveLayout.current = layout;
+                          setDustbinLayout({
+                            x: width - 80,
+                            y: layout.y,
+                            width: 60,
+                            height: 60
+                          });
+                        }}
+                        onDeactivate={() => setIsDeletingMode(false)}
+                        onDelete={() => handleConfirmDelete(customer.id)}
+                      >
+                        <TouchableOpacity
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#FFFFFF',
+                            padding: 12,
+                            borderRadius: 16,
+                            marginBottom: 8,
+                            borderWidth: 1,
+                            borderColor: '#EEE1D4',
+                          }}
+                          onPress={() => router.push(`/(tabs)/business/customers/${customer.id}` as any)}
+                          activeOpacity={0.7}
                         >
-                          ₹ {customer.balance.toLocaleString('en-IN')}
-                        </Text>
-                        <Text style={styles.activityText}>{customer.lastActivity}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  </DraggableDeletionWrapper>
-                ))
+                          <View style={{ 
+                            width: 42, 
+                            height: 42, 
+                            borderRadius: 21, 
+                            backgroundColor: avatarColor.bg, 
+                            alignItems: 'center', 
+                            justifyContent: 'center' 
+                          }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: avatarColor.fc }}>
+                              {customer.initials}
+                            </Text>
+                          </View>
+                          
+                          <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: ThemeColors.textPrimary }}>
+                              {customer.name}
+                            </Text>
+                            <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textSecondary }}>
+                              {customer.lastActivity}
+                            </Text>
+                          </View>
+
+                          <Text style={{ fontFamily: Fonts.display, fontSize: 16, color: ThemeColors.creditRed }}>
+                            ₹ {customer.balance.toLocaleString('en-IN')}
+                          </Text>
+                        </TouchableOpacity>
+                      </DraggableDeletionWrapper>
+                    </Animated.View>
+                  );
+                })
               )}
             </View>
-          </View>
+          </>
         )}
 
-        {/* CUSTOMER VIEW (NON-OWNER) */}
+        {/* NON-OWNER VIEW */}
         {!hasBusiness && (
-          <View style={styles.activitySection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t(`Your Khatas`)}</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/khata' as any)}>
-                <Text style={styles.viewAllText}>{t(`View All`)}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.emptyActivityState}>
-              <MaterialIcons name="store" size={48} color={Colors.textMuted} />
-              <Text style={styles.emptyActivityTitle}>{t(`Check your khatas`)}</Text>
-              <Text style={styles.emptyActivitySubtitle}>{t(`Go to Khata tab to see linked shops`)}</Text>
+          <View style={{ padding: 20 }}>
+            <SectionLabel>{t('Your Khatas')}</SectionLabel>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#EEE1D4' }}>
+              <MaterialIcons name="store" size={48} color={ThemeColors.textSecondary} opacity={0.3} />
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: ThemeColors.textPrimary, marginTop: 12 }}>{t('Check your khatas')}</Text>
+              <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: ThemeColors.textSecondary, textAlign: 'center', marginTop: 4 }}>{t('Go to Khata tab to see linked shops')}</Text>
               <TouchableOpacity 
-                style={[styles.secondaryButton, { marginTop: 16 }]} 
+                style={{ marginTop: 20, backgroundColor: ThemeColors.brandDark, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 100 }}
                 onPress={() => router.push('/(tabs)/khata' as any)}
               >
-                <Text style={styles.secondaryButtonText}>{t(`Go to Khata Tab`)}</Text>
+                <Text style={{ color: '#FFFFFF', fontFamily: Fonts.bold, fontSize: 14 }}>{t('Go to Khata Tab')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
       </ScrollView>
 
-      {/* FAB - ADD CUSTOMER */}
+      {/* FAB */}
       {hasBusiness && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={handleAddCustomer}
-          activeOpacity={0.9}
+        <Animated.View 
+          entering={FadeInUp.delay(500).duration(360).springify()}
+          style={{ position: 'absolute', right: 24, bottom: 104 }}
         >
-          <MaterialIcons name="person-add" size={26} color={Colors.white} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={{ 
+              width: 56, 
+              height: 56, 
+              borderRadius: 28, 
+              backgroundColor: ThemeColors.brandLight, 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              elevation: 8,
+              shadowColor: ThemeColors.brandLight,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+            }}
+            onPress={handleAddCustomer}
+            activeOpacity={0.9}
+          >
+            <MaterialIcons name="person-add" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+        </Animated.View>
       )}
 
+      {/* MODALS */}
       {/* ADD CUSTOMER MODAL */}
       <Modal
         visible={isAddModalVisible}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setIsAddModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setIsAddModalVisible(false)}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{t(`Add Customer`)}</Text>
+          <KeyboardAvoidingView
+            style={{ width: '100%' }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <TouchableOpacity 
+              activeOpacity={1} 
+              onPress={e => e.stopPropagation()} 
+              style={styles.modalContent}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{t('Add Customer')}</Text>
+                <TouchableOpacity onPress={() => setIsAddModalVisible(false)}>
+                  <MaterialIcons name="close" size={24} color={ThemeColors.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-            <Text style={styles.label}>{t(`Customer Name`)}</Text>
-            <Controller
-              control={control}
-              name="name"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.name && styles.inputError]}
-                  placeholder={t(`Enter customer name`)}
-                  placeholderTextColor={Colors.textMuted}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-            {errors.name && <Text style={styles.errorText}>{errors.name.message}</Text>}
-
-            <Text style={styles.label}>{t(`Customer Phone`)}</Text>
-            <Controller
-              control={control}
-              name="phone"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.phone && styles.inputError]}
-                  placeholder={t(`Enter 10 digit phone number`)}
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="numeric"
-                  maxLength={10}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-            {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.buttonOutline]} 
-                onPress={() => {
-                  setIsAddModalVisible(false);
-                  reset();
-                }}
-                disabled={isSubmitting}
-              >
-                <Text style={[styles.modalButtonText, { color: Colors.primary }]}>{t(`Cancel`)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.buttonPrimary]} 
-                onPress={handleSubmit(onSubmit)}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                   <ActivityIndicator color={Colors.white} size="small" />
-                ) : (
-                  <Text style={[styles.modalButtonText, { color: Colors.white }]}>{t(`Save`)}</Text>
+              <Text style={styles.label}>{t('Customer Name')}</Text>
+              <Controller
+                control={control}
+                name="name"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.name && styles.inputError]}
+                    placeholder={t('Enter customer name')}
+                    placeholderTextColor={ThemeColors.textMuted}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                  />
                 )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+              />
+              {errors.name && <Text style={styles.errorText}>{errors.name.message}</Text>}
+
+              <View style={{ height: 16 }} />
+
+              <Text style={styles.label}>{t('Customer Phone')}</Text>
+              <Controller
+                control={control}
+                name="phone"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.phone && styles.inputError]}
+                    placeholder={t('Enter 10 digit phone number')}
+                    placeholderTextColor={ThemeColors.textMuted}
+                    keyboardType="numeric"
+                    maxLength={10}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                  />
+                )}
+              />
+              {errors.phone && <Text style={styles.errorText}>{errors.phone.message}</Text>}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.buttonOutline]} 
+                  onPress={() => {
+                    setIsAddModalVisible(false);
+                    reset();
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <Text style={[styles.modalButtonText, { color: ThemeColors.brandMid }]}>{t('Cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.buttonPrimary]} 
+                  onPress={handleSubmit(onSubmit)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                     <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={[styles.modalButtonText, { color: '#FFF' }]}>{t('Save')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
 
-      {/* CUSTOMER ADDED SUCCESS MODAL */}
       <Modal
         visible={isSuccessModalVisible}
         animationType="fade"
@@ -580,13 +676,11 @@ const HomeScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.successModalContent]}>
             <View style={styles.successIconContainer}>
-              <MaterialIcons name="check-circle" size={64} color={Colors.success} />
+              <MaterialIcons name="check-circle" size={64} color={ThemeColors.paymentGreen} />
             </View>
             
-            <Text style={styles.successTitle}>{t(`Customer added!`)}</Text>
-            <Text style={styles.successMessage}>
-              {t(`Share this code with them:`)}
-            </Text>
+            <Text style={styles.successTitle}>{t('Customer added!')}</Text>
+            <Text style={styles.successMessage}>{t('Share this code with them:')}</Text>
             
             <View style={styles.codeContainer}>
               <Text style={styles.codeText}>{lastAddedLinkCode}</Text>
@@ -602,7 +696,7 @@ const HomeScreen = () => {
             >
               <MaterialIcons name="share" size={20} color={Colors.white} />
               <Text style={[styles.modalButtonText, { color: Colors.white, marginLeft: 8 }]}>
-                {t(`Share Code`)}
+                {t('Share Code')}
               </Text>
             </TouchableOpacity>
 
@@ -610,22 +704,17 @@ const HomeScreen = () => {
               style={[styles.modalButton, styles.buttonOutline, { width: '100%', marginTop: 12 }]} 
               onPress={() => setIsSuccessModalVisible(false)}
             >
-              <Text style={[styles.modalButtonText, { color: Colors.primary }]}>{t(`OK`)}</Text>
+              <Text style={[styles.modalButtonText, { color: Colors.primary }]}>{t('OK')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* SHATTERING ANIMATION OVERLAY */}
-      {shatteringCard && (
-        <ParticleEffect 
-          layout={shatteringCard.layout}
-          color={shatteringCard.color}
-          onComplete={() => setShatteringCard(null)}
-        />
-      )}
+      {/* BUSINESS DETAIL MODAL */}
+      <BusinessModal ad={selectedAd} onClose={() => setSelectedAd(null)} />
     </SafeAreaView>
   );
+
 };
 
 // Success Modal Component (Internal to home.tsx for simplicity or as state in HomeScreen)
@@ -634,43 +723,69 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: ThemeColors.creamBase,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 94,
   },
-  header: {
-    height: 64,
-    paddingHorizontal: Spacing['2xl'],
+  headerInner: {
+    width: '100%',
+    paddingHorizontal: 24,
+    paddingTop: 45,
+    paddingBottom: 10,
+  },
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-  },
-  headerLeft: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  headerTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 22,
+    color: '#FFF',
   },
-  avatarPlaceholder: {
-    backgroundColor: Colors.primaryPale,
+  greetingText: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: ThemeColors.textOnDark,
+    marginBottom: 4,
+  },
+  notificationBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitial: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.heavy,
-    color: Colors.primary,
+  searchBtnAbsolute: {
+    position: 'absolute',
+    right: 24,
+    top: 38,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
-  headerTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.heavy,
-    color: Colors.primary,
-    marginLeft: Spacing.md,
+  notificationDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: ThemeColors.brandLight,
+    borderWidth: 1.5,
+    borderColor: ThemeColors.brandDark,
+  },
+  dateLabel: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: ThemeColors.textMuted,
+    marginTop: 4,
   },
   iconButton: {
     width: 40,
@@ -690,7 +805,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['2xl'],
     paddingTop: Spacing['2xl'],
   },
-  greetingText: {
+  oldGreetingText: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     fontWeight: FontWeight.semibold,
@@ -731,7 +846,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     gap: Spacing.sm,
   },
-  headerRow: {
+  cardHeaderRow: {
     flexDirection: 'column',
     gap: Spacing.sm,
   },
@@ -940,72 +1055,80 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(26, 8, 3, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    minHeight: 300,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 32,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginBottom: 20,
+    fontFamily: Fonts.extrabold,
+    fontSize: 22,
+    color: ThemeColors.brandDark,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: ThemeColors.brandMid,
+    textTransform: 'uppercase',
     marginBottom: 8,
+    marginLeft: 4,
   },
   input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 52,
+    backgroundColor: ThemeColors.creamBase,
+    borderRadius: Radius.md,
+    paddingHorizontal: 20,
+    height: 56,
+    fontFamily: Fonts.regular,
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: ThemeColors.textPrimary,
     marginBottom: 4,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
   },
   inputError: {
-    borderColor: Colors.danger,
+    borderColor: ThemeColors.creditRed,
   },
   errorText: {
-    color: Colors.danger,
-    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.creditRed,
+    fontSize: 11,
     marginBottom: 12,
     marginLeft: 4,
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 24,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 0,
+    justifyContent: 'space-between',
+    gap: 16,
+    marginTop: 32,
   },
   modalButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    flex: 1,
+    height: 52,
+    borderRadius: Radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 100,
   },
   buttonOutline: {
-    borderWidth: 1,
-    borderColor: Colors.primary,
+    borderWidth: 1.5,
+    borderColor: ThemeColors.brandDark,
   },
   buttonPrimary: {
-    backgroundColor: Colors.primary,
+    backgroundColor: ThemeColors.brandDark,
   },
   modalButtonText: {
+    fontFamily: Fonts.bold,
     fontSize: 15,
-    fontWeight: '700',
   },
   successModalContent: {
     borderTopLeftRadius: 32,
@@ -1055,5 +1178,45 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+const CountUpAmount = ({ value, style }: { value: number, style?: any }) => {
+  const [displayValue, setDisplayValue] = React.useState(0);
+  
+  React.useEffect(() => {
+    let start = 0;
+    const end = value;
+    if (start === end) {
+      setDisplayValue(end);
+      return;
+    }
+    
+    const duration = 800;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease out expo: 1 - Math.pow(2, -10 * progress)
+      const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      
+      const current = Math.floor(easeProgress * end);
+      setDisplayValue(current);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [value]);
+
+  return (
+    <Text style={style}>
+      ₹ {displayValue.toLocaleString('en-IN')}
+    </Text>
+  );
+};
 
 export default HomeScreen;

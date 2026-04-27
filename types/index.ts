@@ -54,11 +54,12 @@ export interface DayEntry {
   id: string;
   description: string;
   amount: number;
-  type: 'gave' | 'got'; // strictly 'gave' or 'got'
+  type: 'gave' | 'got' | 'debit' | 'credit'; // supports legacy and new entry types
   time: string; // "HH:MM"
   note?: string; // optional note for 'got' entries
   quantity?: number; // optional quantity for 'gave' entries
   timestamp?: string; // full ISO timestamp
+  is_deleted?: boolean;
 }
 
 export interface DayLog {
@@ -70,6 +71,7 @@ export interface DayLog {
   dayTotal: number;
   isLocked: boolean;
   createdAt: string;
+  is_deleted?: boolean;
 }
 
 // Payment interface removed — all entries now in day_logs

@@ -1,6 +1,6 @@
 export type Locale = 'en' | 'gu';
 
-export type TranslationKey = keyof typeof translations['en'] | (string & {});
+export type TranslationKey = string;
 
 export const translations = {
   en: {
@@ -100,6 +100,11 @@ export const translations = {
     'home.delete_customer_failed': 'Failed to delete customer',
     'home.share_code_msg': 'Share this code with them:',
     'home.share_code_btn': 'Share Code',
+    'home.customers': 'customers',
+    'home.given': 'GIVEN',
+    'home.got': 'GOT',
+    'My Khata': 'My Khata',
+    'Balance': 'Balance',
 
     // My Khata (Customer View)
     'my_khata.empty_msg': 'No khata to show',
@@ -213,6 +218,11 @@ export const translations = {
 
     // Khata / Ledger
     'My Khatas': 'My Khatas',
+    'Your Khatas': 'Your Khatas',
+    'View All': 'View All',
+    'Check your khatas': 'Check your khatas',
+    'Go to Khata tab to see linked shops': 'Go to Khata tab to see linked shops',
+    'Go to Khata Tab': 'Go to Khata Tab',
     'Your Linked Shops': 'Your Linked Shops',
     'Manage your credit and payments across all local shops': 'Manage your credit and payments across all local shops',
     'No Linked Khatas': 'No Linked Khatas',
@@ -346,6 +356,11 @@ export const translations = {
     'home.delete_customer_failed': 'ગ્રાહકને કાઢી નાખવામાં નિષ્ફળ',
     'home.share_code_msg': 'તેમની સાથે આ કોડ શેર કરો:',
     'home.share_code_btn': 'કોડ શેર કરો',
+    'home.customers': 'ગ્રાહકો',
+    'home.given': 'આપ્યું',
+    'home.got': 'મળ્યું',
+    'My Khata': 'મારું ખાતું',
+    'Balance': 'બાકી',
 
     // My Khata
     'my_khata.empty_msg': 'બતાવવા માટે કોઈ ખાતું નથી',
@@ -445,6 +460,15 @@ export const translations = {
     // Entry & Payment
     'Add Entry': 'નોંધ ઉમેરો',
     'Add Entry for': 'નોંધ ઉમેરો',
+    'Record what the customer purchased today.': 'ગ્રાહકે આજે શું ખરીદ્યું તે નોંધો.',
+    'Description': 'વર્ણન',
+    'e.g., 6 cups tea, Parle G packet': 'દા.ત., ૬ કપ ચા, પાર્લે જી પેકેટ',
+    'Quantity': 'જથ્થો',
+    'e.g., 6': 'દા.ત., ૬',
+    'e.g., 30': 'દા.ત., ૩૦',
+    'Success': 'સફળ',
+    'Entry added successfully': 'નોંધ સફળતાપૂર્વક ઉમેરાઈ',
+    'Payment recorded successfully!': 'ચુકવણી સફળતાપૂર્વક નોંધાઈ!',
     'Record Payment': 'ચુકવણી નોંધો',
     'Enter the amount received from customer.': 'ગ્રાહક પાસેથી મળેલી રકમ દાખલ કરો.',
     'Amount (₹)': 'રકમ (₹)',
@@ -494,5 +518,8 @@ export const translations = {
     'Privacy Policy': 'ગોપનીયતા નીતિ',
     'Terms of Service': 'સેવાની શરતો',
     'Contact Us': 'અમારો સંપર્ક કરો',
+    'Add Item': 'આઇટમ ઉમેરો',
+    'Edit Entry': 'નોંધ સંપાદિત કરો',
+    'Update the transaction details.': 'વ્યવહારની વિગત અપડેટ કરો.',
   }
 } as const;

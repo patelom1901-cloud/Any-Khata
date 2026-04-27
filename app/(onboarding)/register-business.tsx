@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+import { View, Text, StyleSheet, ScrollView, Alert, StatusBar, SafeAreaView, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import { router, Stack } from 'expo-router';
 import { isValidIndianPhone } from '../../utils/whatsappUtils';
 import { useAuthStore } from '../../store/authStore';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import { createBusiness } from '../../lib/database';
 import { databases } from '../../lib/appwrite';
 import { DB_ID, COL_USERS } from '../../constants/appwrite';
 import { useTranslation } from "../../hooks/useTranslation";
+import { Colors as ThemeColors, Fonts, Radius } from '@/constants/theme';
+import { WavyHeader } from '@/components/ui/WavyHeader';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 export default function RegisterBusinessScreen() {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
   const { user, setUser } = useAuthStore();
   const [businessName, setBusinessName] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -62,9 +63,7 @@ export default function RegisterBusinessScreen() {
       }
 
       // 3. Update Zustand authStore immediately
-      // First update the hasBusiness flag directly
       useAuthStore.getState().setHasBusiness(true);
-      // Then update the user object which will also set hasBusiness via setUser
       setUser({ ...user, hasBusiness: true });
       Alert.alert(t(`Success`), t(`Business registered successfully!`));
       router.replace('/(tabs)/home');
@@ -77,77 +76,207 @@ export default function RegisterBusinessScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{t(`Register Your Business`)}</Text>
-      <Text style={styles.subtitle}>
-        {t(`Fill in your details to get started.`)}</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      <WavyHeader>
+        <View style={styles.headerInner}>
+          <Text style={styles.headerTitle}>{t(`Register Your Business`)}</Text>
+        </View>
+      </WavyHeader>
 
-      <View style={styles.form}>
-        <Input
-          label={t(`Business Name`)}
-          value={businessName}
-          onChangeText={setBusinessName}
-          placeholder={t(`e.g., Ramesh Tea Stall`)}
-        />
-        <Input
-          label={t(`Owner Name`)}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder={t(`e.g., Ramesh Kumar`)}
-        />
-        <Input
-          label={t(`Phone Number`)}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder={t(`10-digit mobile number`)}
-          keyboardType="phone-pad"
-          maxLength={10}
-          helperText="Used for customer WhatsApp contact"
-        />
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Animated.View entering={FadeInDown.duration(600)} style={styles.content}>
+          <Text style={styles.subtitle}>
+            {t(`Fill in your details to get started.`)}
+          </Text>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <View style={styles.card}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Business Name')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="store" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.input}
+                  value={businessName}
+                  onChangeText={setBusinessName}
+                  placeholder={t('e.g., Ramesh Tea Stall')}
+                  placeholderTextColor={ThemeColors.textMuted}
+                />
+              </View>
+            </View>
 
-        <Button
-          title={t(`Register Business`)}
-          onPress={handleSubmit}
-          fullWidth
-          disabled={loading}
-          style={styles.button}
-        />
-      </View>
-    </ScrollView>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Owner Name')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="person" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.input}
+                  value={ownerName}
+                  onChangeText={setOwnerName}
+                  placeholder={t('e.g., Ramesh Kumar')}
+                  placeholderTextColor={ThemeColors.textMuted}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Phone Number')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="phone" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder={t('10-digit mobile number')}
+                  placeholderTextColor={ThemeColors.textMuted}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+              <Text style={styles.helperText}>{t('Used for customer WhatsApp contact')}</Text>
+            </View>
+
+            {error ? (
+              <Animated.View entering={FadeInUp} style={styles.errorContainer}>
+                <MaterialIcons name="error-outline" size={16} color={ThemeColors.creditRed} />
+                <Text style={styles.errorText}>{error}</Text>
+              </Animated.View>
+            ) : null}
+
+            <TouchableOpacity 
+              style={[styles.primaryBtn, loading && { opacity: 0.7 }]} 
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.primaryBtnText}>{t(`Register Business`)}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: ThemeColors.creamBase,
+  },
+  headerInner: {
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 22,
+    color: '#FFF',
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   content: {
-    padding: Spacing['2xl'],
-  },
-  title: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
+    padding: 24,
   },
   subtitle: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    marginBottom: Spacing['2xl'],
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    color: ThemeColors.textSecondary,
+    marginBottom: 32,
+    marginTop: -8,
   },
-  form: {
-    gap: Spacing.sm,
+  card: {
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.xl,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
-  button: {
-    marginTop: Spacing.lg,
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: ThemeColors.brandMid,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ThemeColors.creamBase,
+    borderRadius: Radius.md,
+    paddingHorizontal: 16,
+    height: 56,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontFamily: Fonts.regular,
+    fontSize: 15,
+    color: ThemeColors.textPrimary,
+  },
+  helperText: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: ThemeColors.textMuted,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F4',
+    padding: 12,
+    borderRadius: Radius.md,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#F8DADA',
   },
   errorText: {
-    color: Colors.danger,
-    fontSize: FontSize.sm,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.creditRed,
+    fontSize: 12,
+    marginLeft: 8,
+  },
+  primaryBtn: {
+    backgroundColor: ThemeColors.brandDark,
+    height: 56,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    elevation: 4,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  primaryBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 16,
+    color: '#FFF',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,28 +25,18 @@ import { useAuthStore } from '../../store/authStore';
 import { getMyLinkedKhatas, linkKhataByCode, unlinkKhata } from '../../lib/database';
 import { DraggableDeletionWrapper } from '../../components/DraggableDeletionWrapper';
 import { ParticleEffect } from '../../components/ParticleEffect';
-import { Dimensions } from 'react-native';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import { useTranslation } from "../../hooks/useTranslation";
+import Animated, { FadeInDown, FadeInRight, FadeInUp, Layout } from 'react-native-reanimated';
+import { WavyHeader } from '../../components/ui/WavyHeader';
+import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
+import { Colors } from '../../constants/colors';
+
+const { width } = Dimensions.get('window');
 
 const linkSchema = z.object({
   code: z.string().length(6, 'Must be exactly 6 digits').regex(/^\d+$/, 'Must contain only digits'),
 });
 type LinkFormValues = z.infer<typeof linkSchema>;
-
-const COLORS = {
-  primary:       Colors.primary,
-  primaryFixed:  Colors.primaryPale,
-  error:         Colors.danger,
-  secondary:     Colors.success,
-  background:    Colors.background,
-  surface:       Colors.surface,
-  textPrimary:   Colors.textPrimary,
-  textSecondary: Colors.textSecondary,
-  outline:       Colors.textMuted,
-  outlineLight:  Colors.border,
-  containerLow:  Colors.background,
-};
 
 export default function KhataScreen() {
   const { t } = useTranslation();
@@ -60,8 +51,7 @@ export default function KhataScreen() {
   const [isDeletingMode, setIsDeletingMode] = useState(false);
   const [dustbinLayout, setDustbinLayout] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   const [shatteringCard, setShatteringCard] = useState<{ layout: { x: number, y: number, width: number, height: number }, color: string } | null>(null);
-  const lastActiveLayout = React.useRef<{ x: number, y: number, width: number, height: number } | null>(null);
-  const { width } = Dimensions.get('window');
+  const lastActiveLayout = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
 
   const { control: linkControl, handleSubmit: handleLinkSubmit, reset: resetLink, formState: { errors: linkErrors } } = useForm<LinkFormValues>({
     resolver: zodResolver(linkSchema),
@@ -87,7 +77,7 @@ export default function KhataScreen() {
     
     setShatteringCard({ 
       layout: lastActiveLayout.current, 
-      color: COLORS.error 
+      color: ThemeColors.creditRed 
     });
     setIsDeletingMode(false);
     
@@ -105,155 +95,197 @@ export default function KhataScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* CUSTOM HEADER */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          {user?.photo ? (
-            <Image source={{ uri: user.photo }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <MaterialIcons name="person" size={20} color={COLORS.primary} />
-            </View>
-          )}
-          <Text style={styles.headerTitle}>{t(`My Khatas`)}</Text>
-        </View>
+      {/* SHATTERING ANIMATION OVERLAY */}
+      {shatteringCard && (
+        <ParticleEffect 
+          layout={shatteringCard.layout}
+          color={shatteringCard.color}
+          onComplete={() => setShatteringCard(null)}
+        />
+      )}
 
-        {isDeletingMode ? (
-          <View 
-            style={styles.dustbinContainer}
-            onLayout={(e) => {
-              setDustbinLayout({
-                x: width - 70,
-                y: 10,
-                width: 60,
-                height: 60
-              });
-            }}
-          >
-            <MaterialIcons name="delete-sweep" size={32} color={COLORS.error} />
-          </View>
-        ) : (
-          <TouchableOpacity 
-            style={styles.linkButton}
-            onPress={() => setIsLinkModalVisible(true)}
-          >
-            <MaterialIcons name="add-link" size={24} color={COLORS.primary} />
-            <Text style={styles.linkButtonText}>{t(`Link`)}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* FLOATING DUSTBIN */}
+      {isDeletingMode && dustbinLayout && (
+        <View 
+          style={{
+            position: 'absolute',
+            left: dustbinLayout.x,
+            top: dustbinLayout.y,
+            width: dustbinLayout.width,
+            height: dustbinLayout.height,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 30,
+            backgroundColor: 'rgba(173, 40, 40, 0.15)',
+            zIndex: 9999,
+          }}
+        >
+          <MaterialIcons name="delete-sweep" size={32} color={ThemeColors.creditRed} />
+        </View>
+      )}
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
-          <View style={styles.heroSection}>
-            <Text style={styles.heroTitle}>{t(`Your Linked Shops`)}</Text>
-            <Text style={styles.heroSubtitle}>{t(`Manage your credit and payments across all local shops`)}</Text>
+        {/* 1. WAVY HEADER */}
+        <WavyHeader>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <View>
+              <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textOnDark }}>
+                {t(`My Khatas`)}
+              </Text>
+              <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textMuted, marginTop: 2 }}>
+                {linkedKhatas.length} {t(`linked shops`)}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: ThemeColors.brandLight, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setIsLinkModalVisible(true)}
+            >
+              <MaterialIcons name="add-link" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
+        </WavyHeader>
 
+        <View style={styles.content}>
+          {/* 2. HERO SECTION */}
+          <Animated.View entering={FadeInDown.delay(120).duration(380).springify()} style={styles.heroSection}>
+            <Text style={{ fontFamily: Fonts.extrabold, fontSize: 24, color: ThemeColors.textPrimary }}>
+              {t(`Your Linked Shops`)}
+            </Text>
+            <Text style={{ fontFamily: Fonts.regular, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 8, lineHeight: 20 }}>
+              {t(`Manage your credit and payments across all local shops.`)}
+            </Text>
+          </Animated.View>
+
+          {/* 3. LIST CONTAINER */}
           <View style={styles.listContainer}>
             {isFetchingLinked ? (
               <View style={styles.centerLoading}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.loadingText}>{t(`Fetching your records...`)}</Text>
+                <ActivityIndicator size="large" color={ThemeColors.brandLight} />
+                <Text style={{ fontFamily: Fonts.semibold, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 16 }}>
+                  {t(`Fetching your records...`)}
+                </Text>
               </View>
             ) : linkedKhatas.length === 0 ? (
-              <View style={styles.emptyState}>
+              <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.emptyState}>
                 <View style={styles.emptyIconContainer}>
-                  <MaterialIcons name="storefront" size={64} color={COLORS.outlineLight} />
+                  <MaterialIcons name="storefront" size={64} color={ThemeColors.creamBorder} />
                 </View>
-                <Text style={styles.emptyStateTitle}>{t(`No Linked Khatas`)}</Text>
-                <Text style={styles.emptyStateSubtitle}>
+                <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textPrimary }}>
+                  {t(`No Linked Khatas`)}
+                </Text>
+                <Text style={{ fontFamily: Fonts.regular, fontSize: 14, color: ThemeColors.textSecondary, textAlign: 'center', marginTop: 8, paddingHorizontal: 32 }}>
                   {t(`Link a shop using their 6-digit code to see your balance and history.`)}
                 </Text>
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={() => setIsLinkModalVisible(true)}
                 >
-                  <Text style={styles.primaryButtonText}>{t(`Link a Khata Now`)}</Text>
+                  <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: '#FFFFFF' }}>{t(`Link a Khata Now`)}</Text>
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             ) : (
-              linkedKhatas.map(khata => (
-                <DraggableDeletionWrapper
-                  key={khata.id}
-                  dustbinLayout={dustbinLayout}
-                  onActivate={(layout) => {
-                    setIsDeletingMode(true);
-                    lastActiveLayout.current = layout;
-                  }}
-                  onDeactivate={() => setIsDeletingMode(false)}
-                  onDelete={() => handleConfirmUnlink(khata.id)}
-                >
-                  <TouchableOpacity
-                    style={styles.card}
-                    onPress={() => router.push(`/customer/${khata.id}` as any)}
-                    activeOpacity={0.85}
+              linkedKhatas.map((khata, index) => {
+                const balanceColor = khata.balance > 0 ? ThemeColors.creditRed : ThemeColors.paymentGreen;
+                
+                return (
+                  <Animated.View 
+                    key={khata.id}
+                    entering={FadeInRight.delay(200 + index * 50).springify()}
+                    layout={Layout.springify()}
                   >
-                    <View style={styles.cardLeft}>
-                      {khata.storePhotoUrl ? (
-                        <Image source={{ uri: khata.storePhotoUrl }} style={{ width: 56, height: 56, borderRadius: 8, resizeMode: 'cover' }} />
-                      ) : (
-                        <View style={[styles.cardAvatar, { backgroundColor: COLORS.primaryFixed }]}>
-                          <MaterialIcons name="storefront" size={28} color={COLORS.primary} />
-                        </View>
-                      )}
-                      <View style={styles.cardInfo}>
-                        <Text style={styles.cardName}>{khata.businessName}</Text>
-                        <Text style={styles.cardLastUpdate}>{t(`Shop Ledger`)}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.cardRight}>
-                      <Text
-                        style={[
-                          styles.balanceText,
-                          { color: khata.balance > 0 ? COLORS.error : COLORS.secondary },
-                        ]}
+                    <DraggableDeletionWrapper
+                      dustbinLayout={dustbinLayout}
+                      onActivate={(layout) => {
+                        setIsDeletingMode(true);
+                        lastActiveLayout.current = layout;
+                        setDustbinLayout({
+                          x: width - 80,
+                          y: layout.y,
+                          width: 60,
+                          height: 60
+                        });
+                      }}
+                      onDeactivate={() => setIsDeletingMode(false)}
+                      onDelete={() => handleConfirmUnlink(khata.id)}
+                    >
+                      <TouchableOpacity
+                        style={styles.card}
+                        onPress={() => router.push(`/customer/${khata.id}` as any)}
+                        activeOpacity={0.85}
                       >
-                        ₹ {khata.balance.toLocaleString('en-IN')}
-                      </Text>
-                      <View style={styles.viewBadge}>
-                        <Text style={styles.viewBadgeText}>{t(`View Details`)}</Text>
-                        <MaterialIcons name="chevron-right" size={16} color={COLORS.primary} />
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                </DraggableDeletionWrapper>
-              ))
+                        <View style={styles.cardLeft}>
+                          {khata.storePhotoUrl ? (
+                            <Image source={{ uri: khata.storePhotoUrl }} style={{ width: 50, height: 50, borderRadius: 12, resizeMode: 'cover' }} />
+                          ) : (
+                            <View style={[styles.cardAvatar, { backgroundColor: ThemeColors.creamBase }]}>
+                              <MaterialIcons name="storefront" size={24} color={ThemeColors.brandMid} />
+                            </View>
+                          )}
+                          <View style={styles.cardInfo}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: ThemeColors.textPrimary }}>
+                              {khata.businessName}
+                            </Text>
+                            <Text style={{ fontFamily: Fonts.regular, fontSize: 11, color: ThemeColors.textSecondary, marginTop: 2 }}>
+                              {t(`Shop Ledger`)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.cardRight}>
+                          <Text style={{ fontFamily: Fonts.display, fontSize: 18, color: balanceColor }}>
+                            ₹{khata.balance.toLocaleString('en-IN')}
+                          </Text>
+                          <View style={styles.viewBadge}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 10, color: ThemeColors.brandLight }}>{t(`View Details`)}</Text>
+                            <MaterialIcons name="chevron-right" size={14} color={ThemeColors.brandLight} />
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    </DraggableDeletionWrapper>
+                  </Animated.View>
+                );
+              })
             )}
           </View>
         </View>
       </ScrollView>
 
-      {/* LINK KHATA MODAL */}
+      {/* 4. LINK KHATA MODAL */}
       <Modal
         visible={isLinkModalVisible}
         animationType="slide"
         transparent={true}
         onRequestClose={() => setIsLinkModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setIsLinkModalVisible(false)}
         >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t(`Link a Khata`)}</Text>
-              <TouchableOpacity onPress={() => setIsLinkModalVisible(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView 
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 20 }}
+          <KeyboardAvoidingView
+            style={{ width: '100%' }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <TouchableOpacity 
+              activeOpacity={1} 
+              onPress={e => e.stopPropagation()} 
+              style={styles.modalContent}
             >
-              <Text style={styles.modalDescription}>
+              <View style={styles.modalHeader}>
+                <Text style={{ fontFamily: Fonts.extrabold, fontSize: 22, color: ThemeColors.brandDark }}>
+                  {t(`Link a Khata`)}
+                </Text>
+                <TouchableOpacity onPress={() => setIsLinkModalVisible(false)}>
+                  <MaterialIcons name="close" size={24} color={ThemeColors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontFamily: Fonts.regular, fontSize: 14, color: ThemeColors.textSecondary, lineHeight: 20, marginBottom: 24 }}>
                 {t(`Enter the 6-digit shop code provided by the business owner to sync your ledger.`)}
               </Text>
 
@@ -265,33 +297,13 @@ export default function KhataScreen() {
                   <TextInput
                     style={[styles.input, linkErrors.code && styles.inputError]}
                     placeholder={t(`e.g. 123456`)}
-                    placeholderTextColor={COLORS.outline}
+                    placeholderTextColor={ThemeColors.textSecondary}
                     keyboardType="numeric"
                     maxLength={6}
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
-                    returnKeyType="done"
-                    onSubmitEditing={handleLinkSubmit(async (data) => {
-                      if (!user) return;
-                      const userId = user.userId || (user as any).$id;
-                      setIsLinking(true);
-                      try {
-                        const result = await linkKhataByCode(userId, data.code);
-                        if (result.success) {
-                          Alert.alert(t(`Success`), result.message);
-                          setIsLinkModalVisible(false);
-                          resetLink();
-                          await fetchLinkedKhatas();
-                        } else {
-                          Alert.alert(t(`Error`), result.message);
-                        }
-                      } catch (err: any) {
-                        Alert.alert(t(`Error`), err.message || t(`Something went wrong.`));
-                      } finally {
-                        setIsLinking(false);
-                      }
-                    })}
+                    autoFocus
                   />
                 )}
               />
@@ -299,7 +311,7 @@ export default function KhataScreen() {
 
               <View style={styles.modalActions}>
                 <TouchableOpacity 
-                  style={[styles.button, styles.buttonPrimary]} 
+                  style={styles.modalSubmitButton} 
                   onPress={handleLinkSubmit(async (data) => {
                     if (!user) return;
                     const userId = user.userId || (user as any).$id;
@@ -323,25 +335,16 @@ export default function KhataScreen() {
                   disabled={isLinking}
                 >
                   {isLinking ? (
-                    <ActivityIndicator color={Colors.white} size="small" />
+                    <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>{t(`Link Shop`)}</Text>
+                    <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: '#FFFFFF' }}>{t(`Link Shop`)}</Text>
                   )}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
-
-      {/* SHATTERING ANIMATION OVERLAY */}
-      {shatteringCard && (
-        <ParticleEffect 
-          layout={shatteringCard.layout}
-          color={shatteringCard.color}
-          onComplete={() => setShatteringCard(null)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -349,69 +352,7 @@ export default function KhataScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  header: {
-    height: 64,
-    paddingHorizontal: 24,
-    backgroundColor: COLORS.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    zIndex: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  dustbinContainer: {
-    width: 60,
-    height: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 0, 0, 0.1)',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  avatarPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primaryFixed,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.primaryFixed,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  linkButtonText: {
-    color: COLORS.primary,
-    fontWeight: '700',
-    fontSize: 14,
+    backgroundColor: ThemeColors.creamBase,
   },
   content: {
     padding: 24,
@@ -419,73 +360,45 @@ const styles = StyleSheet.create({
   heroSection: {
     marginBottom: 32,
   },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-  },
-  heroSubtitle: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    marginTop: 8,
-    lineHeight: 22,
-  },
   listContainer: {
-    gap: 16,
+    gap: 12,
   },
   centerLoading: {
     paddingVertical: 60,
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 12,
-    color: COLORS.textSecondary,
-    fontSize: 15,
-  },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    padding: 20,
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.lg,
+    padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: ThemeColors.brandDark,
     shadowOpacity: 0.04,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   cardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
   },
   cardAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardInfo: {
     justifyContent: 'center',
   },
-  cardName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-  },
-  cardLastUpdate: {
-    fontSize: 13,
-    color: COLORS.outline,
-    marginTop: 4,
-  },
   cardRight: {
     alignItems: 'flex-end',
-  },
-  balanceText: {
-    fontSize: 18,
-    fontWeight: '800',
   },
   viewBadge: {
     flexDirection: 'row',
@@ -493,61 +406,38 @@ const styles = StyleSheet.create({
     marginTop: 6,
     gap: 2,
   },
-  viewBadgeText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   emptyState: {
     marginTop: 40,
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.containerLow,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(201,136,58,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
   },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 8,
-  },
-  emptyStateSubtitle: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
   primaryButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: ThemeColors.brandDark,
     paddingHorizontal: 32,
     paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: Radius.pill,
+    marginTop: 32,
     elevation: 4,
-    shadowColor: COLORS.primary,
+    shadowColor: ThemeColors.brandDark,
     shadowOpacity: 0.2,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
-  primaryButtonText: {
-    color: Colors.white,
-    fontWeight: '700',
-    fontSize: 16,
-  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(26, 8, 3, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 32,
@@ -557,58 +447,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
-  modalDescription: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    lineHeight: 22,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginBottom: 10,
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: ThemeColors.brandMid,
+    textTransform: 'uppercase',
+    marginBottom: 8,
     marginLeft: 4,
   },
   input: {
-    backgroundColor: COLORS.containerLow,
-    borderRadius: 16,
+    backgroundColor: ThemeColors.creamBase,
+    borderRadius: Radius.md,
     paddingHorizontal: 20,
     height: 60,
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    color: ThemeColors.textPrimary,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.outlineLight,
+    borderColor: ThemeColors.creamBorder,
   },
   inputError: {
-    borderColor: COLORS.error,
+    borderColor: ThemeColors.creditRed,
   },
   errorText: {
-    color: COLORS.error,
-    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.creditRed,
+    fontSize: 11,
     marginBottom: 16,
     marginLeft: 4,
-    fontWeight: '500',
   },
   modalActions: {
     marginTop: 24,
   },
-  button: {
+  modalSubmitButton: {
+    backgroundColor: ThemeColors.brandDark,
     height: 60,
-    borderRadius: 16,
+    borderRadius: Radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  buttonPrimary: {
-    backgroundColor: COLORS.primary,
+    elevation: 4,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
 });

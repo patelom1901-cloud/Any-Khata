@@ -4,18 +4,30 @@ import {
   Text,
   StyleSheet,
   Dimensions,
-  FlatList,
   TouchableOpacity,
   Image,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import type { Ad } from '../../types';
 import { useTranslation } from '../../hooks/useTranslation';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedScrollHandler, 
+  useAnimatedStyle, 
+  interpolate,
+  Extrapolate,
+  withSpring,
+  useDerivedValue,
+  SharedValue
+} from 'react-native-reanimated';
+import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
-const CAROUSEL_HEIGHT = 180;
+const SLIDE_WIDTH = width * 0.85;
+const SLIDE_SPACING = (width - SLIDE_WIDTH) / 2;
+const CAROUSEL_HEIGHT = 200;
 
 interface AdCarouselProps {
   ads: Ad[];
@@ -24,81 +36,72 @@ interface AdCarouselProps {
 
 export default function AdCarousel({ ads, onAdPress }: AdCarouselProps) {
   const { t } = useTranslation();
-  const [activeAdIndex, setActiveAdIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
+  const scrollX = useSharedValue(0);
+  const flatListRef = useRef<Animated.FlatList<Ad>>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  // Auto-scroll carousel every 5s (only when there are ads)
+  // Auto-scroll logic
   useEffect(() => {
     if (ads.length < 2) return;
     const interval = setInterval(() => {
-      setActiveAdIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % ads.length;
-        flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-        return nextIndex;
+      const nextIndex = (activeIndex + 1) % ads.length;
+      flatListRef.current?.scrollToIndex({ 
+        index: nextIndex, 
+        animated: true,
+        viewPosition: 0.5 
       });
-    }, 5000); // 5 seconds
+      setActiveIndex(nextIndex);
+    }, 5000);
     return () => clearInterval(interval);
-  }, [ads.length]);
+  }, [ads.length, activeIndex]);
 
-  const onScroll = (event: any) => {
-    const slideSize = event.nativeEvent.layoutMeasurement.width;
-    const index = event.nativeEvent.contentOffset.x / slideSize;
-    const roundIndex = Math.round(index);
-    if (roundIndex !== activeAdIndex) setActiveAdIndex(roundIndex);
-  };
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollX.value = event.contentOffset.x;
+    },
+  });
 
   if (ads.length === 0) {
     return (
       <View style={styles.emptyCarousel}>
-        <MaterialIcons name="campaign" size={48} color={Colors.textMuted} />
-        <Text style={styles.emptyTitle}>{t('ads.empty')}</Text>
+        <View style={styles.emptyIconContainer}>
+          <MaterialIcons name="campaign" size={40} color={ThemeColors.brandMid} />
+        </View>
+        <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: ThemeColors.textSecondary }}>
+          {t('ads.empty')}
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.carouselContainer, { height: CAROUSEL_HEIGHT + 30 }]}>
-      <FlatList
+    <View style={styles.container}>
+      <Animated.FlatList
         ref={flatListRef}
         data={ads}
         keyExtractor={(item) => item.adId}
         horizontal
-        pagingEnabled
         showsHorizontalScrollIndicator={false}
+        snapToInterval={SLIDE_WIDTH}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingHorizontal: SLIDE_SPACING }}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.adSlide} 
-            activeOpacity={0.9} 
-            onPress={() => onAdPress(item)}
-          >
-            <View style={styles.adBox}>
-              <Image 
-                source={{ uri: item.image_url }} 
-                style={styles.adImage}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.overlay}
-              >
-                <Text style={styles.adBusinessName}>{item.business_name}</Text>
-              </LinearGradient>
-            </View>
-          </TouchableOpacity>
+        renderItem={({ item, index }) => (
+          <CarouselItem 
+            item={item} 
+            index={index} 
+            scrollX={scrollX} 
+            onPress={() => onAdPress(item)} 
+          />
         )}
       />
+
+      {/* ANIMATED DOTS */}
       {ads.length > 1 && (
-        <View style={styles.dotsContainer}>
-          {ads.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                activeAdIndex === index ? styles.activeDot : styles.inactiveDot,
-              ]}
-            />
+        <View style={styles.pagination}>
+          {ads.map((_, i) => (
+            <PaginationDot key={i} index={i} scrollX={scrollX} />
           ))}
         </View>
       )}
@@ -106,22 +109,138 @@ export default function AdCarousel({ ads, onAdPress }: AdCarouselProps) {
   );
 }
 
+function CarouselItem({ item, index, scrollX, onPress }: { item: Ad, index: number, scrollX: SharedValue<number>, onPress: () => void }) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const inputRange = [
+      (index - 1) * SLIDE_WIDTH,
+      index * SLIDE_WIDTH,
+      (index + 1) * SLIDE_WIDTH,
+    ];
+
+    const scale = interpolate(
+      scrollX.value,
+      inputRange,
+      [0.9, 1, 0.9],
+      Extrapolate.CLAMP
+    );
+
+    const opacity = interpolate(
+      scrollX.value,
+      inputRange,
+      [0.6, 1, 0.6],
+      Extrapolate.CLAMP
+    );
+
+    const rotateY = interpolate(
+      scrollX.value,
+      inputRange,
+      [25, 0, 25],
+      Extrapolate.CLAMP
+    );
+
+    const translateX = interpolate(
+      scrollX.value,
+      inputRange,
+      [-15, 0, 0],
+      Extrapolate.CLAMP
+    );
+
+    return {
+      transform: [
+        { perspective: 1000 },
+        { scale },
+        { rotateY: `${rotateY}deg` },
+        { translateX }
+      ],
+      opacity,
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.slideContainer, animatedStyle]}>
+      <TouchableOpacity 
+        activeOpacity={0.9} 
+        onPress={onPress}
+        style={styles.slide}
+      >
+        <Image 
+          source={{ uri: item.image_url }} 
+          style={styles.image}
+          resizeMode="cover"
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(26, 8, 3, 0.9)']}
+          style={styles.overlay}
+        >
+          <Text style={styles.businessName} numberOfLines={1}>
+            {item.business_name}
+          </Text>
+          <View style={styles.tag}>
+            <Text style={styles.tagText}>{item.owner_name}</Text>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+function PaginationDot({ index, scrollX }: { index: number, scrollX: SharedValue<number> }) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const inputRange = [
+      (index - 1) * SLIDE_WIDTH,
+      index * SLIDE_WIDTH,
+      (index + 1) * SLIDE_WIDTH,
+    ];
+
+    const width = interpolate(
+      scrollX.value,
+      inputRange,
+      [8, 24, 8],
+      Extrapolate.CLAMP
+    );
+
+    const opacity = interpolate(
+      scrollX.value,
+      inputRange,
+      [0.3, 1, 0.3],
+      Extrapolate.CLAMP
+    );
+
+    return {
+      width,
+      opacity,
+      backgroundColor: index % 2 === 0 ? ThemeColors.brandLight : ThemeColors.brandDark,
+    };
+  });
+
+  return <Animated.View style={[styles.dot, animatedStyle]} />;
+}
+
 const styles = StyleSheet.create({
-  carouselContainer: {
-    marginTop: Spacing.lg,
+  container: {
+    paddingVertical: 20,
   },
-  adSlide: {
-    width,
-    paddingHorizontal: Spacing['2xl'],
-  },
-  adBox: {
-    width: '100%',
+  slideContainer: {
+    width: SLIDE_WIDTH,
     height: CAROUSEL_HEIGHT,
-    backgroundColor: Colors.primaryPale,
-    borderRadius: 16,
-    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  adImage: {
+  slide: {
+    width: SLIDE_WIDTH - 10,
+    height: CAROUSEL_HEIGHT,
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    elevation: 8,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  image: {
     width: '100%',
     height: '100%',
   },
@@ -130,50 +249,61 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '50%',
+    height: '60%',
     justifyContent: 'flex-end',
-    padding: Spacing.md,
+    padding: 20,
   },
-  adBusinessName: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.heavy,
-    color: Colors.white,
+  businessName: {
+    fontSize: 20,
+    fontFamily: Fonts.extrabold,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  dotsContainer: {
+  tag: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  tagText: {
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+  },
+  pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: Spacing.md,
-    gap: Spacing.sm,
+    marginTop: 20,
+    gap: 8,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  activeDot: {
-    width: 16,
-    backgroundColor: Colors.primary,
-  },
-  inactiveDot: {
-    backgroundColor: Colors.textMuted,
-    opacity: 0.4,
+    height: 8,
+    borderRadius: 4,
   },
   emptyCarousel: {
-    marginTop: Spacing['2xl'],
-    marginHorizontal: Spacing['2xl'],
-    height: CAROUSEL_HEIGHT,
-    backgroundColor: Colors.primaryPale,
-    borderRadius: 16,
+    marginTop: 20,
+    marginHorizontal: 24,
+    height: 180,
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.lg,
+    gap: 12,
   },
-  emptyTitle: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.textSecondary,
-    textAlign: 'center',
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: ThemeColors.creamBase,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

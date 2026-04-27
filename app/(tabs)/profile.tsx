@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,10 @@ import {
   TextInput,
   Modal,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import { useAuthStore } from '../../store/authStore';
@@ -24,24 +25,14 @@ import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveS
 import { clearCachedUser } from '../../lib/auth';
 import { deleteUserAccount } from '../../lib/functions';
 import { FEATURES } from '../../constants/config';
-import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import type { Locale } from '../../constants/i18n';
 import { useTranslation } from "../../hooks/useTranslation";
 import { Ad } from '../../types';
+import { WavyHeader } from '../../components/ui/WavyHeader';
+import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
-const COLORS = {
-  primary:      Colors.primary,
-  primaryFixed: Colors.primaryPale,
-  secondary:    Colors.success,
-  surface:      Colors.surface,
-  background:   Colors.background,
-  textPrimary:  Colors.textPrimary,
-  textSecondary:Colors.textSecondary,
-  containerHigh:Colors.border,
-  error:        Colors.danger,
-  errorLight:   Colors.dangerLight,
-  outline:      Colors.textMuted,
-};
+const { width } = Dimensions.get('window');
 
 const LANGUAGE_OPTIONS: { locale: Locale; label: string; nativeName: string }[] = [
   { locale: 'en', label: 'English', nativeName: 'English' },
@@ -63,79 +54,19 @@ export default function ProfileScreen() {
   const [subDates, setSubDates] = useState<{ started: string; expires: string } | null>(null);
   const [activeAds, setActiveAds] = useState<Ad[]>([]);
 
+  // Avatar Logic
+  const avatarUrl = useMemo(() => {
+    const name = user?.name || 'User';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=C9883A&color=fff&size=128&bold=true`;
+  }, [user]);
+
   const SETTINGS_ITEMS = [
-    {
-      id: '1',
-      label: t('profile.settings.notifications'),
-      icon: 'notifications-none',
-      onPress: () => router.push('/notifications' as any),
-    },
-    {
-      id: '2',
-      label: t('profile.settings.language'),
-      icon: 'language',
-      onPress: () => setShowLanguageModal(true),
-    },
-    {
-      id: '3',
-      label: t('profile.settings.help_support'),
-      icon: 'help-outline',
-      onPress: () =>
-        Alert.alert(
-          t('profile.settings.help_support'),
-          t('profile.support_email_msg'),
-          [{ text: t('common.ok') }],
-        ),
-    },
-    {
-      id: '4',
-      label: t('profile.settings.privacy_policy'),
-      icon: 'security',
-      onPress: () => router.push('/privacy' as any),
-    },
-    {
-      id: '5',
-      label: t('profile.settings.terms_of_service'),
-      icon: 'description',
-      onPress: () => router.push('/terms' as any),
-    },
+    { id: '1', label: t('profile.settings.notifications'), icon: 'notifications-none', onPress: () => router.push('/notifications' as any) },
+    { id: '2', label: t('profile.settings.language'), icon: 'language', onPress: () => setShowLanguageModal(true) },
+    { id: '3', label: t('profile.settings.help_support'), icon: 'help-outline', onPress: () => Alert.alert(t('profile.settings.help_support'), t('profile.support_email_msg'), [{ text: t('common.ok') }]) },
+    { id: '4', label: t('profile.settings.privacy_policy'), icon: 'security', onPress: () => router.push('/privacy' as any) },
+    { id: '5', label: t('profile.settings.terms_of_service'), icon: 'description', onPress: () => router.push('/terms' as any) },
   ];
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      t('profile.delete_account'),
-      t('profile.delete_confirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.continue'),
-          style: 'destructive',
-          onPress: () => setShowDeleteDialog(true),
-        },
-      ]
-    );
-  };
-
-  const performDeleteAccount = async () => {
-    if (!user) return;
-    setDeletingAccount(true);
-    setShowDeleteDialog(false);
-    setDeleteConfirmText('');
-
-    try {
-      // deleteUserAccount calls the Appwrite Cloud Function `delete-user-account`
-      // which uses the server-side SDK + API key to:
-      //   1. Delete business, customers, day_logs, subscriptions, users docs
-      //   2. Call users.delete(userId) — only possible server-side
-      await deleteUserAccount(user.userId);
-      await clearCachedUser();
-      storeLogout();
-      router.replace('/(auth)/login');
-    } catch (err: any) {
-      setDeletingAccount(false);
-      Alert.alert(t('common.error'), t('profile.delete_error'));
-    }
-  };
 
   const getDaysRemaining = (expiryDateStr: string): number => {
     const expiry = new Date(expiryDateStr);
@@ -148,8 +79,6 @@ export default function ProfileScreen() {
     const fetchSub = async () => {
       try {
         const userId = user.userId || (user as any).$id;
-        const userPhone = user.phone || '';
-        
         const [active, activeSub, fetchedBusiness, adsResult] = await Promise.all([
           checkBusinessSubscriptionStatus(userId),
           getActiveSubscription(userId),
@@ -158,24 +87,15 @@ export default function ProfileScreen() {
         ]);
 
         setIsSubscribed(active);
-        
         if (active && activeSub) {
           const startDate = new Date(activeSub.$createdAt);
           const expiryDate = new Date(startDate);
           expiryDate.setDate(startDate.getDate() + 30);
-          
-          setSubDates({
-            started: startDate.toISOString(),
-            expires: expiryDate.toISOString()
-          });
+          setSubDates({ started: startDate.toISOString(), expires: expiryDate.toISOString() });
         } else {
           setSubDates(null);
         }
-        
-        if (fetchedBusiness) {
-          setBusiness(fetchedBusiness);
-        }
-        
+        if (fetchedBusiness) setBusiness(fetchedBusiness);
         setActiveAds(Array.isArray(adsResult) ? adsResult : []);
       } catch (err: any) {
         setIsSubscribed(false);
@@ -197,12 +117,8 @@ export default function ProfileScreen() {
         link_amount: 11,
         link_currency: "INR",
         link_purpose: "Become a Business Owner",
-        customer_details: {
-          customer_phone: user?.phone || "9999999999"
-        },
-        link_meta: {
-          return_url: redirectUri + `?order_id={link_id}&type=business${business?.businessId ? `&reference_id=${business.businessId}` : ''}`
-        }
+        customer_details: { customer_phone: user?.phone || "9999999999" },
+        link_meta: { return_url: redirectUri + `?order_id={link_id}&type=business${business?.businessId ? `&reference_id=${business.businessId}` : ''}` }
       };
 
       const res = await fetch('https://sandbox.cashfree.com/pg/links', {
@@ -218,17 +134,10 @@ export default function ProfileScreen() {
       });
 
       const data = await res.json();
-      if (!res.ok || !data.link_url) {
-        throw new Error(data.message || 'Failed to create payment link');
-      }
-
+      if (!res.ok || !data.link_url) throw new Error(data.message || 'Failed to create payment link');
       const result = await WebBrowser.openAuthSessionAsync(data.link_url, redirectUri);
-      
       if (result.type === 'success') {
-        await createBusinessSubscription({
-          userId: user!.userId,
-          cashfreeOrderId: orderId
-        });
+        await createBusinessSubscription({ userId: user!.userId, cashfreeOrderId: orderId });
         setIsSubscribed(true);
         Alert.alert(t('common.success'), t('profile.payment_success'));
       }
@@ -239,28 +148,46 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLanguageSelect = (locale: Locale) => {
-    setSelectedLanguage(locale);
-    setShowLanguageModal(false);
+  const performDeleteAccount = async () => {
+    if (!user) return;
+    setDeletingAccount(true);
+    setShowDeleteDialog(false);
+    try {
+      await deleteUserAccount(user.userId);
+      await clearCachedUser();
+      storeLogout();
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      setDeletingAccount(false);
+      Alert.alert(t('common.error'), t('profile.delete_error'));
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('profile.title')}</Text>
-      </View>
-
+      <WavyHeader>
+        <View style={styles.headerInner}>
+          <Text style={styles.headerTitle}>{t('profile.title')}</Text>
+        </View>
+      </WavyHeader>
+      
       <ScrollView 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.cardContainer}>
-          <View style={[styles.identityCard, styles.primaryCard]}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{user?.name?.slice(0, 2).toUpperCase() || 'U'}</Text>
+        {/* 1. Identity Card */}
+        <Animated.View entering={FadeInDown.duration(600)} style={styles.cardContainer}>
+          <View style={styles.identityCard}>
+            <View style={styles.avatarWrapper}>
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              {isSubscribed && (
+                <View style={styles.verifiedBadge}>
+                  <MaterialIcons name="verified" size={16} color={ThemeColors.brandLight} />
+                </View>
+              )}
             </View>
             <View style={styles.identityInfo}>
               <Text style={styles.userName}>{user?.name || 'User'}</Text>
@@ -268,22 +195,24 @@ export default function ProfileScreen() {
               {user?.phone ? <Text style={styles.userPhone}>{user.phone}</Text> : null}
             </View>
           </View>
-        </View>
+        </Animated.View>
 
+        {/* 2. Business Management */}
         <View style={styles.cardContainer}>
+          <Text style={styles.sectionTitle}>{t('Business Account')}</Text>
           {loadingSub ? (
             <View style={[styles.whiteCard, { alignItems: 'center', padding: 30 }]}>
-              <ActivityIndicator color={COLORS.primary} />
+              <ActivityIndicator color={ThemeColors.brandLight} />
             </View>
           ) : business ? (
             <View style={styles.whiteCard}>
               <View style={styles.cardRow}>
                 <View style={styles.businessLeft}>
                   {business?.storePhotoUrl ? (
-                    <Image source={{ uri: business.storePhotoUrl }} style={{ width: 48, height: 48, borderRadius: 14, resizeMode: 'cover' }} />
+                    <Image source={{ uri: business.storePhotoUrl }} style={styles.businessImg} />
                   ) : (
-                    <View style={[styles.iconBox, { backgroundColor: COLORS.primaryFixed }]}>
-                      <MaterialIcons name="store" size={24} color={COLORS.primary} />
+                    <View style={styles.iconBox}>
+                      <MaterialIcons name="store" size={24} color={ThemeColors.brandMid} />
                     </View>
                   )}
                   <View style={styles.businessInfo}>
@@ -298,75 +227,63 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.editButton, { marginTop: 4, width: 32, height: 32 }]}
+                    style={styles.editButton}
                     onPress={() => router.push('/(tabs)/business/edit-business' as any)}
                   >
-                    <MaterialIcons name="edit" size={20} color={COLORS.outline} />
+                    <MaterialIcons name="edit" size={20} color={ThemeColors.brandMid} />
                   </TouchableOpacity>
                 </View>
               </View>
 
               {!isSubscribed ? (
                 <View style={{ marginTop: 16 }}>
-                  <Text style={{ fontSize: 13, color: COLORS.error, fontWeight: '600', marginBottom: 12 }}>
+                  <Text style={styles.statusErrorMsg}>
                     {t('profile.subscription_ended_msg')}
                   </Text>
                   <TouchableOpacity 
-                    style={[styles.primaryCard, { justifyContent: 'center', paddingVertical: 12, borderRadius: 12, elevation: 0 }]}
+                    style={styles.primaryActionBtn}
                     onPress={handlePayment}
                     disabled={paying}
                   >
-                    {paying ? (
-                      <ActivityIndicator color={Colors.white} size="small" />
-                    ) : (
-                      <Text style={{ color: Colors.white, fontSize: 14, fontWeight: '800', textAlign: 'center' }}>
-                        {t('profile.pay_reactivate_btn')}
-                      </Text>
-                    )}
+                    {paying ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.primaryActionText}>{t('profile.pay_reactivate_btn')}</Text>}
                   </TouchableOpacity>
                 </View>
-              ) : subDates && (() => {
-                const daysLeft = getDaysRemaining(subDates.expires);
-                return (
-                  <View style={{ marginTop: 12 }}>
-                    <Text style={[styles.dateText, daysLeft <= 5 && { color: COLORS.error }]}>
-                      {t('profile.expires_in')} {daysLeft} {t('common.days')}
-                    </Text>
-                  </View>
-                );
-              })()}
+              ) : subDates && (
+                <View style={styles.expiryRow}>
+                  <Ionicons name="time-outline" size={14} color={ThemeColors.textSecondary} />
+                  <Text style={[styles.dateText, getDaysRemaining(subDates.expires) <= 5 && { color: ThemeColors.creditRed }]}>
+                    {t('profile.expires_in')} {getDaysRemaining(subDates.expires)} {t('common.days')}
+                  </Text>
+                </View>
+              )}
             </View>
           ) : isSubscribed && !hasBusiness ? (
             <TouchableOpacity 
-              style={[styles.whiteCard, { alignItems: 'center', paddingVertical: 24, borderWidth: 1, borderColor: COLORS.primary, borderStyle: 'dashed' }]}
+              style={styles.emptyCard}
               onPress={() => router.push('/(onboarding)/register-business')}
             >
-              <MaterialIcons name="add-business" size={32} color={COLORS.primary} style={{ marginBottom: 12 }} />
-              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.textPrimary }}>{t('profile.register_business')}</Text>
-              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 4 }}>{t('profile.setup_profile_desc')}</Text>
+              <MaterialIcons name="add-business" size={32} color={ThemeColors.brandMid} style={{ marginBottom: 12 }} />
+              <Text style={styles.emptyCardTitle}>{t('profile.register_business')}</Text>
+              <Text style={styles.emptyCardSubtitle}>{t('profile.setup_profile_desc')}</Text>
             </TouchableOpacity>
           ) : FEATURES.ENABLE_PAYMENTS ? (
-            <View style={[styles.whiteCard, { paddingVertical: 20 }]}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>{t('profile.start_khata')}</Text>
-              <Text style={{ fontSize: 14, color: COLORS.textSecondary, marginTop: 4, marginBottom: 16 }}>{t('profile.manage_customers')}</Text>
+            <View style={styles.whiteCard}>
+              <Text style={styles.cardTitle}>{t('profile.start_khata')}</Text>
+              <Text style={styles.cardSubtitle}>{t('profile.manage_customers')}</Text>
               <TouchableOpacity 
-                style={[styles.primaryCard, { justifyContent: 'center', paddingVertical: 14, borderRadius: 12, elevation: 0 }]}
+                style={styles.primaryActionBtn}
                 onPress={handlePayment}
                 disabled={paying}
               >
-                {paying ? (
-                  <ActivityIndicator color={Colors.white} />
-                ) : (
-                  <Text style={{ color: Colors.white, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>
-                    {t('profile.pay_plan_11')}</Text>
-                )}
+                {paying ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryActionText}>{t('profile.pay_plan_11')}</Text>}
               </TouchableOpacity>
             </View>
           ) : null}
         </View>
 
-        {/* Ad Subscription Cards */}
+        {/* 3. Ad Subscription Cards */}
         <View style={styles.cardContainer}>
+          <Text style={styles.sectionTitle}>{t('Advertisements')}</Text>
           {loadingSub ? null : (
             <>
               {activeAds.map((ad, index) => {
@@ -375,14 +292,14 @@ export default function ProfileScreen() {
                 const isLast = index === activeAds.length - 1;
                 
                 return (
-                  <View key={ad.adId} style={[styles.whiteCard, { marginBottom: 16 }]}>
+                  <Animated.View key={ad.adId} entering={FadeInUp.delay(index * 100)} style={[styles.whiteCard, { marginBottom: 16 }]}>
                     <View style={styles.cardRow}>
                       <View style={styles.businessLeft}>
                         {ad.image_url ? (
-                          <Image source={{ uri: ad.image_url }} style={{ width: 48, height: 48, borderRadius: 14, resizeMode: 'cover' }} />
+                          <Image source={{ uri: ad.image_url }} style={styles.adImg} />
                         ) : (
-                          <View style={[styles.iconBox, { backgroundColor: COLORS.primaryFixed }]}>
-                            <MaterialIcons name="image" size={24} color={COLORS.primary} />
+                          <View style={styles.iconBox}>
+                            <MaterialIcons name="image" size={24} color={ThemeColors.brandMid} />
                           </View>
                         )}
                         <View style={styles.businessInfo}>
@@ -396,19 +313,19 @@ export default function ProfileScreen() {
                             {isAdActive ? t('profile.active_plan_100') : t('profile.expired')}
                           </Text>
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+                        <View style={styles.adActionRow}>
                           <TouchableOpacity
-                            style={[styles.editButton, { width: 32, height: 32 }]}
+                            style={styles.adEditBtn}
                             onPress={() => router.push(`/ad-edit/${ad.adId}` as any)}
                           >
-                            <MaterialIcons name="edit" size={20} color={COLORS.outline} />
+                            <MaterialIcons name="edit" size={18} color={ThemeColors.brandMid} />
                           </TouchableOpacity>
                           {isLast && isAdActive && (
                             <TouchableOpacity
-                              style={[styles.editButton, { width: 32, height: 32, marginLeft: 8 }]}
+                              style={[styles.adEditBtn, { marginLeft: 8 }]}
                               onPress={() => router.push('/ad-submit' as any)}
                             >
-                              <MaterialIcons name="add" size={24} color={COLORS.primary} />
+                              <MaterialIcons name="add" size={20} color={ThemeColors.brandLight} />
                             </TouchableOpacity>
                           )}
                         </View>
@@ -416,39 +333,32 @@ export default function ProfileScreen() {
                     </View>
                     
                     {isAdActive ? (
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={[styles.dateText, daysLeft <= 5 && { color: COLORS.error }]}>
+                      <View style={styles.expiryRow}>
+                        <Ionicons name="time-outline" size={14} color={ThemeColors.textSecondary} />
+                        <Text style={[styles.dateText, daysLeft <= 5 && { color: ThemeColors.creditRed }]}>
                           {t(`Expires in`)} {daysLeft} {t(`days`)}
                         </Text>
                       </View>
                     ) : (
                       <TouchableOpacity 
-                        style={[styles.primaryCard, { justifyContent: 'center', paddingVertical: 10, borderRadius: 12, elevation: 0, marginTop: 12 }]}
+                        style={[styles.primaryActionBtn, { marginTop: 12, paddingVertical: 10 }]}
                         onPress={() => router.push({ pathname: '/ad-submit', params: { adId: ad.adId } } as any)}
                       >
-                        <Text style={{ color: Colors.white, fontSize: 14, fontWeight: '800', textAlign: 'center' }}>
-                          {t('profile.renew_ad_btn')}
-                        </Text>
+                        <Text style={styles.primaryActionText}>{t('profile.renew_ad_btn')}</Text>
                       </TouchableOpacity>
                     )}
-                  </View>
+                  </Animated.View>
                 );
               })}
               {FEATURES.ENABLE_PAYMENTS && activeAds.length === 0 && (
-                <View style={[styles.whiteCard, { paddingVertical: 20 }]}>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>
-                    {t('profile.advertise_business')}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: COLORS.textSecondary, marginTop: 4, marginBottom: 16 }}>
-                    {t('profile.reach_local_msg')}
-                  </Text>
+                <View style={styles.whiteCard}>
+                  <Text style={styles.cardTitle}>{t('profile.advertise_business')}</Text>
+                  <Text style={styles.cardSubtitle}>{t('profile.reach_local_msg')}</Text>
                   <TouchableOpacity
-                    style={[styles.primaryCard, { justifyContent: 'center', paddingVertical: 14, borderRadius: 12, elevation: 0 }]}
+                    style={styles.primaryActionBtn}
                     onPress={() => router.push('/ad-submit' as any)}
                   >
-                    <Text style={{ color: Colors.white, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>
-                      {t('profile.pay_ad_btn')}
-                    </Text>
+                    <Text style={styles.primaryActionText}>{t('profile.pay_ad_btn')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -456,48 +366,42 @@ export default function ProfileScreen() {
           )}
         </View>
 
-
-
-        <View style={styles.settingsContainer}>
-          {SETTINGS_ITEMS.map((item, index) => (
-            <React.Fragment key={item.id}>
-              <TouchableOpacity style={styles.settingsRow} onPress={item.onPress}>
-                <View style={styles.settingsLeft}>
-                  <MaterialIcons name={item.icon as any} size={22} color={COLORS.textSecondary} />
-                  <Text style={styles.settingsLabel}>{item.label}</Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={COLORS.outline} />
-              </TouchableOpacity>
-              {index < SETTINGS_ITEMS.length - 1 && <View style={styles.divider} />}
-            </React.Fragment>
-          ))}
+        {/* 4. Settings List */}
+        <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>{t('Preferences')}</Text>
+          <View style={styles.settingsGroup}>
+            {SETTINGS_ITEMS.map((item, index) => (
+              <React.Fragment key={item.id}>
+                <TouchableOpacity style={styles.settingsRow} onPress={item.onPress}>
+                  <View style={styles.settingsLeft}>
+                    <View style={styles.settingIconCircle}>
+                      <MaterialIcons name={item.icon as any} size={20} color={ThemeColors.brandMid} />
+                    </View>
+                    <Text style={styles.settingsLabel}>{item.label}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color={ThemeColors.creamBorder} />
+                </TouchableOpacity>
+                {index < SETTINGS_ITEMS.length - 1 && <View style={styles.divider} />}
+              </React.Fragment>
+            ))}
+          </View>
         </View>
 
-        <View style={styles.signOutContainer}>
-          <TouchableOpacity 
-            style={styles.signOutButton}
-            onPress={logout}
-          >
+        {/* 5. Footer Actions */}
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
             <Text style={styles.signOutText}>{t('profile.sign_out')}</Text>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.deleteAccountContainer}>
-          <TouchableOpacity
-            onPress={handleDeleteAccount}
-            disabled={deletingAccount}
-          >
-            {deletingAccount ? (
-              <ActivityIndicator color={COLORS.error} size="small" />
-            ) : (
-              <Text style={styles.deleteAccountText}>{t('profile.delete_account')}</Text>
-            )}
+          <TouchableOpacity onPress={() => setShowDeleteDialog(true)} style={{ marginTop: 20 }}>
+            <Text style={styles.deleteAccountText}>{t('profile.delete_account')}</Text>
           </TouchableOpacity>
-        </View>
 
-        <Text style={styles.versionText}>{t('Version 1.0.42')}</Text>
+          <Text style={styles.versionText}>{t('Version 1.0.42')}</Text>
+        </View>
       </ScrollView>
 
+      {/* Delete Dialog */}
       {showDeleteDialog && (
         <View style={styles.dialogOverlay}>
           <View style={styles.dialogBox}>
@@ -508,10 +412,7 @@ export default function ProfileScreen() {
             <View style={styles.dialogActions}>
               <TouchableOpacity
                 style={styles.dialogCancelBtn}
-                onPress={() => {
-                  setShowDeleteDialog(false);
-                  setDeleteConfirmText('');
-                }}
+                onPress={() => setShowDeleteDialog(false)}
               >
                 <Text style={styles.dialogCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
@@ -526,32 +427,28 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <Modal
-        visible={showLanguageModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowLanguageModal(false)}
-      >
+      {/* Language Modal */}
+      <Modal visible={showLanguageModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.languageModalContent}>
-            <View style={styles.languageModalHeader}>
-              <Text style={styles.languageModalTitle}>{t('profile.select_language')}</Text>
+          <View style={styles.sheetContent}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{t('profile.select_language')}</Text>
               <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.textPrimary} />
+                <MaterialIcons name="close" size={24} color={ThemeColors.textPrimary} />
               </TouchableOpacity>
             </View>
             {LANGUAGE_OPTIONS.map((option) => (
               <TouchableOpacity
                 key={option.locale}
-                style={styles.languageOption}
-                onPress={() => handleLanguageSelect(option.locale)}
+                style={[styles.langOption, selectedLanguage === option.locale && styles.langOptionActive]}
+                onPress={() => { setSelectedLanguage(option.locale); setShowLanguageModal(false); }}
               >
-                <View style={styles.languageOptionLeft}>
-                  <Text style={styles.languageLabel}>{option.nativeName}</Text>
-                  <Text style={styles.languageSubLabel}>{option.label}</Text>
+                <View>
+                  <Text style={styles.langNative}>{option.nativeName}</Text>
+                  <Text style={styles.langLabel}>{option.label}</Text>
                 </View>
                 {selectedLanguage === option.locale && (
-                  <MaterialIcons name="check" size={22} color={COLORS.primary} />
+                  <MaterialIcons name="check-circle" size={24} color={ThemeColors.brandLight} />
                 )}
               </TouchableOpacity>
             ))}
@@ -565,270 +462,349 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: ThemeColors.creamBase,
   },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  header: {
-    height: 64,
+  headerInner: {
+    width: '100%',
     paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.primary,
+    fontFamily: Fonts.extrabold,
+    fontSize: 22,
+    color: '#FFF',
+  },
+  scrollContent: {
+    paddingTop: 3,
+    paddingBottom: 40,
   },
   cardContainer: {
     paddingHorizontal: 24,
-    marginTop: 20,
+    marginBottom: 20,
   },
-  primaryCard: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 24,
+  sectionTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: ThemeColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  identityCard: {
+    backgroundColor: ThemeColors.brandDark,
+    borderRadius: Radius.xl,
     padding: 24,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  identityCard: {
-    elevation: 4,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    elevation: 8,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
   },
-  avatarCircle: {
+  avatarWrapper: {
+    position: 'relative',
+  },
+  avatarImage: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: COLORS.primaryFixed,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: ThemeColors.brandMid,
+    borderWidth: 2,
+    borderColor: ThemeColors.brandLight,
   },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.primary,
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    padding: 2,
   },
   identityInfo: {
     marginLeft: 20,
+    flex: 1,
   },
   userName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.white,
+    fontFamily: Fonts.extrabold,
+    fontSize: 20,
+    color: '#FFF',
   },
   userEmail: {
-    fontSize: 14,
-    color: COLORS.primaryFixed,
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: ThemeColors.textMuted,
     marginTop: 2,
   },
   userPhone: {
-    fontSize: 14,
-    color: COLORS.primaryFixed,
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: ThemeColors.textMuted,
   },
   whiteCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.lg,
     padding: 20,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
+  cardTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 18,
+    color: ThemeColors.textPrimary,
+  },
+  cardSubtitle: {
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    color: ThemeColors.textSecondary,
+    marginTop: 4,
+    marginBottom: 16,
+  },
   cardRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  planPrice: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.secondary,
-    marginTop: 4,
-  },
-  activeBadge: {
-    backgroundColor: Colors.successLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 99,
-    borderWidth: 1,
-    borderColor: Colors.success,
-  },
-  activeBadgeText: {
-    color: Colors.success,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  expiredBadge: {
-    backgroundColor: Colors.dangerLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 99,
-    borderWidth: 1,
-    borderColor: Colors.danger,
-  },
-  expiredBadgeText: {
-    color: Colors.danger,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  renewText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 12,
-  },
-  dateText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
   businessLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  businessImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    resizeMode: 'cover',
+  },
+  adImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    resizeMode: 'cover',
   },
   iconBox: {
-    width: 48,
-    height: 48,
+    width: 50,
+    height: 50,
     borderRadius: 14,
+    backgroundColor: 'rgba(201,136,58,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   businessInfo: {
     marginLeft: 16,
+    flex: 1,
   },
   businessName: {
+    fontFamily: Fonts.bold,
     fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: ThemeColors.textPrimary,
   },
   businessLocation: {
+    fontFamily: Fonts.regular,
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: ThemeColors.textSecondary,
     marginTop: 2,
   },
+  activeBadge: {
+    backgroundColor: 'rgba(52, 168, 83, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 168, 83, 0.2)',
+  },
+  activeBadgeText: {
+    color: '#2E7D32',
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+  },
+  expiredBadge: {
+    backgroundColor: 'rgba(211, 47, 47, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(211, 47, 47, 0.2)',
+  },
+  expiredBadgeText: {
+    color: '#C62828',
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+  },
   editButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: ThemeColors.creamBase,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  adActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  adEditBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: ThemeColors.creamBase,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsContainer: {
-    backgroundColor: COLORS.surface,
-    marginTop: 32,
-    marginHorizontal: 0,
+  statusErrorMsg: {
+    fontSize: 13,
+    color: ThemeColors.creditRed,
+    fontFamily: Fonts.semibold,
+    marginBottom: 12,
+  },
+  primaryActionBtn: {
+    backgroundColor: ThemeColors.brandDark,
+    paddingVertical: 14,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryActionText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: Fonts.bold,
+  },
+  expiryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  dateText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 12,
+    color: ThemeColors.textSecondary,
+  },
+  emptyCard: {
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.xl,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: ThemeColors.brandLight,
+    borderStyle: 'dashed',
+  },
+  emptyCardTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 16,
+    color: ThemeColors.textPrimary,
+  },
+  emptyCardSubtitle: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: ThemeColors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  settingsSection: {
+    marginTop: 10,
     paddingHorizontal: 24,
+  },
+  settingsGroup: {
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    overflow: 'hidden',
   },
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 18,
+    padding: 16,
   },
   settingsLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  settingIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(201,136,58,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
   settingsLabel: {
+    fontFamily: Fonts.semibold,
     fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginLeft: 16,
+    color: ThemeColors.textPrimary,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.background,
-    marginLeft: 38,
+    backgroundColor: ThemeColors.creamBorder,
+    marginLeft: 68,
   },
-  signOutContainer: {
+  footer: {
     paddingHorizontal: 24,
     marginTop: 40,
-  },
-  signOutButton: {
-    backgroundColor: COLORS.errorLight,
-    paddingVertical: 18,
-    borderRadius: 16,
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  signOutBtn: {
+    backgroundColor: 'rgba(211, 47, 47, 0.05)',
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(211, 47, 47, 0.1)',
   },
   signOutText: {
-    color: COLORS.error,
+    fontFamily: Fonts.bold,
     fontSize: 16,
-    fontWeight: '800',
-  },
-  versionText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: COLORS.outline,
-    marginTop: 32,
-  },
-  deleteAccountContainer: {
-    alignItems: 'center',
-    marginTop: 20,
+    color: ThemeColors.creditRed,
   },
   deleteAccountText: {
-    color: COLORS.error,
+    fontFamily: Fonts.semibold,
     fontSize: 14,
-    fontWeight: '600',
+    color: ThemeColors.textSecondary,
+    textDecorationLine: 'underline',
+  },
+  versionText: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: ThemeColors.creamBorder,
+    marginTop: 32,
   },
   dialogOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 999,
+    alignItems: 'center',
+    zIndex: 100,
   },
   dialogBox: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    width: '85%',
+    backgroundColor: '#FFF',
+    borderRadius: Radius.xl,
     padding: 24,
-    marginHorizontal: 24,
-    width: '90%',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
   },
   dialogTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontFamily: Fonts.extrabold,
+    fontSize: 20,
+    color: ThemeColors.textPrimary,
     marginBottom: 10,
   },
   dialogMessage: {
+    fontFamily: Fonts.regular,
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: ThemeColors.textSecondary,
     lineHeight: 20,
-    marginBottom: 16,
-  },
-  dialogInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.outline,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginBottom: 20,
-    letterSpacing: 2,
+    marginBottom: 24,
   },
   dialogActions: {
     flexDirection: 'row',
@@ -836,74 +812,74 @@ const styles = StyleSheet.create({
   },
   dialogCancelBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.containerHigh,
+    paddingVertical: 12,
     alignItems: 'center',
+    borderRadius: Radius.lg,
+    backgroundColor: ThemeColors.creamBase,
   },
   dialogCancelText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    color: ThemeColors.textSecondary,
   },
   dialogConfirmBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.error,
+    paddingVertical: 12,
     alignItems: 'center',
-  },
-  dialogConfirmBtnDisabled: {
-    backgroundColor: COLORS.errorLight,
+    borderRadius: Radius.lg,
+    backgroundColor: ThemeColors.creditRed,
   },
   dialogConfirmText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.white,
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    color: '#FFF',
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
-  languageModalContent: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 34,
+  sheetContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
-  languageModalHeader: {
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  sheetTitle: {
+    fontFamily: Fonts.extrabold,
+    fontSize: 20,
+    color: ThemeColors.textPrimary,
+  },
+  langOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.background,
+    padding: 18,
+    backgroundColor: ThemeColors.creamBase,
+    borderRadius: 16,
+    marginBottom: 12,
   },
-  languageModalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+  langOptionActive: {
+    backgroundColor: 'rgba(201,136,58,0.08)',
+    borderWidth: 1,
+    borderColor: ThemeColors.brandLight,
   },
-  languageOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-  },
-  languageOptionLeft: {
-    flexDirection: 'column',
-  },
-  languageLabel: {
+  langNative: {
+    fontFamily: Fonts.bold,
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+    color: ThemeColors.textPrimary,
   },
-  languageSubLabel: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+  langLabel: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: ThemeColors.textSecondary,
     marginTop: 2,
   },
 });

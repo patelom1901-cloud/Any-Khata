@@ -22,7 +22,9 @@ export const createEntry = (description: string, amount: number, type: 'gave' | 
 
 /** Calculate total from entries array */
 export const calcDayTotal = (entries: DayEntry[]): number => {
-  const total = entries.reduce((sum, e) => sum + e.amount, 0);
+  const total = entries
+    .filter(e => !e.is_deleted)
+    .reduce((sum, e) => sum + e.amount, 0);
   return Math.round(total * 100) / 100;
 };
 

@@ -14,18 +14,10 @@ import { router, Stack } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from "../hooks/useTranslation";
-
-const COLORS = {
-  primary: '#1f108e',
-  primaryFixed: '#e2dfff',
-  surface: '#ffffff',
-  background: '#f8f9fa',
-  textPrimary: '#191c1d',
-  textSecondary: '#464553',
-  outline: '#777584',
-  divider: '#e7e8e9',
-  secondary: '#006c49',
-};
+import { Colors as ThemeColors, Fonts, Radius } from '@/constants/theme';
+import { Colors, FontSize, FontWeight, Spacing } from '@/constants/colors';
+import { WavyHeader } from '@/components/ui/WavyHeader';
+import Animated, { FadeInDown, FadeInRight, FadeInUp } from 'react-native-reanimated';
 
 const STORAGE_KEY = '@anykhata_notifications';
 
@@ -89,77 +81,97 @@ export default function NotificationsScreen() {
     description: string,
     prefKey: keyof NotificationPrefs,
     disabled = false,
+    index = 0
   ) => (
-    <View style={[styles.row, disabled && styles.rowDisabled]}>
+    <Animated.View 
+      entering={FadeInRight.delay(300 + index * 50).duration(400)}
+      style={[styles.row, disabled && styles.rowDisabled]}
+    >
       <View style={styles.rowLeft}>
-        <View style={[styles.iconBox, { backgroundColor: disabled ? COLORS.divider : COLORS.primaryFixed }]}>
+        <View style={[styles.iconBox, { backgroundColor: disabled ? ThemeColors.creamBorder : 'rgba(201,136,58,0.1)' }]}>
           <MaterialIcons
             name={icon as any}
             size={20}
-            color={disabled ? COLORS.outline : COLORS.primary}
+            color={disabled ? ThemeColors.textMuted : ThemeColors.brandLight}
           />
         </View>
         <View style={styles.rowText}>
-          <Text style={[styles.rowLabel, disabled && styles.textDisabled]}>{label}</Text>
-          <Text style={[styles.rowDesc, disabled && styles.textDisabled]}>{description}</Text>
+          <Text style={[styles.rowLabel, disabled && styles.textDisabled]}>{t(label)}</Text>
+          <Text style={[styles.rowDesc, disabled && styles.textDisabled]}>{t(description)}</Text>
         </View>
       </View>
       <Switch
         value={prefs[prefKey]}
         onValueChange={(val) => updatePref(prefKey, val)}
         disabled={disabled}
-        trackColor={{ false: COLORS.divider, true: COLORS.primary }}
-        thumbColor={Platform.OS === 'android' ? COLORS.surface : undefined}
+        trackColor={{ false: ThemeColors.creamBorder, true: ThemeColors.brandLight }}
+        thumbColor={Platform.OS === 'android' ? ThemeColors.creamCard : undefined}
       />
-    </View>
+    </Animated.View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t(`Notifications`)}</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <WavyHeader>
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color={ThemeColors.textOnDark} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t(`Notifications`)}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      </WavyHeader>
 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {/* MASTER TOGGLE */}
-        <View style={styles.masterCard}>
+        <Animated.View 
+          entering={FadeInUp.delay(100).duration(500)}
+          style={styles.masterCard}
+        >
           <View style={styles.masterLeft}>
-            <MaterialIcons name="notifications" size={28} color={COLORS.primary} />
+            <View style={styles.masterIconCircle}>
+              <MaterialIcons name="notifications-active" size={28} color={ThemeColors.brandLight} />
+            </View>
             <View style={styles.masterText}>
               <Text style={styles.masterLabel}>{t(`Push Notifications`)}</Text>
               <Text style={styles.masterDesc}>
-                {prefs.pushEnabled ? 'Notifications are enabled' : 'All notifications are off'}
+                {prefs.pushEnabled ? t('Notifications are enabled') : t('All notifications are off')}
               </Text>
             </View>
           </View>
           <Switch
             value={prefs.pushEnabled}
             onValueChange={(val) => updatePref('pushEnabled', val)}
-            trackColor={{ false: COLORS.divider, true: COLORS.primary }}
-            thumbColor={Platform.OS === 'android' ? COLORS.surface : undefined}
+            trackColor={{ false: ThemeColors.creamBorder, true: ThemeColors.brandLight }}
+            thumbColor={Platform.OS === 'android' ? ThemeColors.creamCard : undefined}
           />
-        </View>
+        </Animated.View>
 
         {/* NOTIFICATION TYPES */}
-        <Text style={styles.groupLabel}>{t(`Notification Types`)}</Text>
-        <View style={styles.card}>
+        <Animated.Text 
+          entering={FadeInDown.delay(200).duration(400)}
+          style={styles.groupLabel}
+        >
+          {t(`Notification Types`)}
+        </Animated.Text>
+        
+        <Animated.View 
+          entering={FadeInDown.delay(250).duration(500)}
+          style={styles.card}
+        >
           {renderRow(
             'add-circle-outline',
             'New Entry',
             'When a new transaction is added to your khata',
             'newEntry',
             !prefs.pushEnabled,
+            0
           )}
           <View style={styles.divider} />
           {renderRow(
@@ -168,6 +180,7 @@ export default function NotificationsScreen() {
             'When a customer makes a payment',
             'paymentReceived',
             !prefs.pushEnabled,
+            1
           )}
           <View style={styles.divider} />
           {renderRow(
@@ -176,6 +189,7 @@ export default function NotificationsScreen() {
             'Periodic reminders for outstanding balances',
             'balanceReminder',
             !prefs.pushEnabled,
+            2
           )}
           <View style={styles.divider} />
           {renderRow(
@@ -184,30 +198,31 @@ export default function NotificationsScreen() {
             'News about new features and improvements',
             'appUpdates',
             !prefs.pushEnabled,
+            3
           )}
-        </View>
+        </Animated.View>
 
-        <Text style={styles.footerNote}>
-          Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.</Text>
+        <Animated.Text 
+          entering={FadeInUp.delay(600).duration(400)}
+          style={styles.footerNote}
+        >
+          {t('Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.')}
+        </Animated.Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: ThemeColors.creamBase,
   },
-  header: {
-    height: 64,
-    paddingHorizontal: 16,
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
+    paddingBottom: 8,
   },
   backButton: {
     width: 40,
@@ -217,31 +232,40 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.primary,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textOnDark,
   },
   content: {
-    padding: 24,
+    padding: 20,
     paddingBottom: 48,
   },
   masterCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: ThemeColors.creamCard,
     borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 2,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    shadowColor: ThemeColors.brandDark,
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    marginBottom: 28,
+    marginBottom: 24,
   },
   masterLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  masterIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(201,136,58,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   masterText: {
     marginLeft: 16,
@@ -249,30 +273,33 @@ const styles = StyleSheet.create({
   },
   masterLabel: {
     fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textPrimary,
   },
   masterDesc: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textSecondary,
     marginTop: 2,
   },
   groupLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.outline,
+    fontSize: 9,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.9,
     marginBottom: 12,
+    paddingHorizontal: 4,
   },
   card: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: ThemeColors.creamCard,
     borderRadius: 20,
     paddingHorizontal: 20,
-    elevation: 2,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    shadowColor: ThemeColors.brandDark,
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
   row: {
@@ -282,7 +309,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   rowDisabled: {
-    opacity: 0.45,
+    opacity: 0.5,
   },
   rowLeft: {
     flexDirection: 'row',
@@ -302,28 +329,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontFamily: Fonts.semibold,
+    color: ThemeColors.textPrimary,
   },
   rowDesc: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textSecondary,
     marginTop: 2,
   },
   textDisabled: {
-    color: COLORS.outline,
+    color: ThemeColors.textMuted,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
+    backgroundColor: ThemeColors.creamBorder,
     marginLeft: 54,
   },
   footerNote: {
-    fontSize: 12,
-    color: COLORS.outline,
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textSecondary,
     lineHeight: 18,
-    marginTop: 24,
+    marginTop: 32,
     textAlign: 'center',
+    paddingHorizontal: 20,
   },
 });

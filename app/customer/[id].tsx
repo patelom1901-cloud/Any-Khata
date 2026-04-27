@@ -14,41 +14,27 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeInUp, FadeInRight, Layout } from 'react-native-reanimated';
 
 import { useAuthStore } from '../../store/authStore';
 import {
   getCustomer,
   getBusiness,
-  getCustomerDayLogs,
+  getDayLogsForCustomer,
   upsertTodayDayLog,
   recalcAndUpdateCustomerBalance,
   deleteCustomer,
 } from '../../lib/database';
 import { formatRelativeDate } from '../../utils/dateUtils';
 import { useTranslation } from "../../hooks/useTranslation";
-
-// ─── Design tokens (unchanged) ─────────────────────────────────────────────────
-const COLORS = {
-  primary: '#1f108e',
-  primaryFixed: '#e2dfff',
-  primaryDark: '#3730a3',
-  error: '#ba1a1a',
-  errorLight: '#ffdad6',
-  secondary: '#006c49',
-  secondaryLight: '#d1fae5',
-  background: '#f8f9fa',
-  surface: '#ffffff',
-  textPrimary: '#191c1d',
-  textSecondary: '#464553',
-  outline: '#777584',
-  outlineLight: '#c8c4d5',
-  containerLow: '#f3f4f5',
-  containerHigh: '#e7e8e9',
-};
+import { WavyHeader } from '../../components/ui/WavyHeader';
+import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
+import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function getInitials(name: string): string {
@@ -82,25 +68,12 @@ export default function CustomerLedgerScreen() {
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [addEntryAmount, setAddEntryAmount] = useState('');
   const [addEntryDesc, setAddEntryDesc] = useState('');
-  // UI name kept as-is; mapped to DB 'credit'|'debit' on save
   const [entryType, setEntryType] = useState<'credit' | 'payment'>('credit');
 
   // ── Fetch day_logs ────────────────────────────────────────────────────────
   const fetchDayLogs = useCallback(async (customerId: string) => {
-    console.log('[CustomerLedger] fetchDayLogs — customerId (Appwrite $id):', customerId);
-    const logs = await getCustomerDayLogs(customerId);
-    // Parse entries JSON string → array for each log
-    const parsed = logs.map((doc: any) => ({
-      ...doc,
-      parsedEntries: (() => {
-        try {
-          return JSON.parse(doc.entries || '[]');
-        } catch {
-          return [];
-        }
-      })(),
-    }));
-    setDayLogs(parsed);
+    const logs = await getDayLogsForCustomer(undefined, customerId);
+    setDayLogs(logs);
   }, []);
 
   // ── Initial data load ─────────────────────────────────────────────────────
@@ -110,8 +83,6 @@ export default function CustomerLedgerScreen() {
       setLoading(true);
       setError(null);
 
-      // 1. Fetch customer document by $id from router params
-      console.log('[CustomerLedger] loadScreen — route param id (should be Appwrite $id):', id);
       const customerDoc = await getCustomer(id);
       if (!customerDoc) {
         setError(t(`Customer not found.`));
@@ -119,10 +90,6 @@ export default function CustomerLedgerScreen() {
       }
       setCustomer(customerDoc);
 
-      // 2. Access control
-      //    linked_user_id === current user → read-only (customer viewing own khata)
-      //    owner_id === current user       → full edit access (business owner)
-      //    Fallback: check businesses collection to confirm ownership
       const linkedUserId: string = (customerDoc as any).linked_user_id ?? '';
       const ownerId: string = (customerDoc as any).owner_id ?? '';
 
@@ -133,7 +100,6 @@ export default function CustomerLedgerScreen() {
         setIsReadOnly(false);
         setIsOwner(true);
       } else {
-        // Belt-and-suspenders: confirm via businesses collection
         const business = await getBusiness((customerDoc as any).business_id ?? '');
         const bizOwnerId: string = (business as any)?.owner_id ?? '';
         const ownerConfirmed = user.userId === bizOwnerId;
@@ -141,7 +107,6 @@ export default function CustomerLedgerScreen() {
         setIsOwner(ownerConfirmed);
       }
 
-      // 3. Fetch day_logs
       await fetchDayLogs(id);
     } catch (err: any) {
       setError(err?.message ?? t(`Failed to load customer data.`));
@@ -154,7 +119,6 @@ export default function CustomerLedgerScreen() {
     loadScreen();
   }, [loadScreen]);
 
-  // ── Save entry ────────────────────────────────────────────────────────────
   const handleSaveEntry = async () => {
     const parsedAmount = parseFloat(addEntryAmount);
     if (!addEntryAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -165,9 +129,6 @@ export default function CustomerLedgerScreen() {
 
     setSaving(true);
     try {
-      // Map UI toggle to DB type:
-      //   "Gave (Credit)" [entryType:'credit'] = business extended credit = customer OWES = DB 'debit'
-      //   "Got (Payment)" [entryType:'payment'] = business received cash   = customer PAID = DB 'credit'
       const dbType: 'got' | 'gave' = entryType === 'payment' ? 'got' : 'gave';
 
       await upsertTodayDayLog(
@@ -180,15 +141,12 @@ export default function CustomerLedgerScreen() {
         }
       );
 
-      // Recalculate and persist customer balance
       await recalcAndUpdateCustomerBalance(customer.$id);
 
-      // Re-fetch customer (updated balance) and day_logs
       const refreshed = await getCustomer(customer.$id);
       if (refreshed) setCustomer(refreshed);
       await fetchDayLogs(customer.$id);
 
-      // Reset form
       setShowAddEntry(false);
       setAddEntryAmount('');
       setAddEntryDesc('');
@@ -200,7 +158,6 @@ export default function CustomerLedgerScreen() {
     }
   };
 
-  // ── Delete customer ───────────────────────────────────────────────────────
   const handleDeleteCustomer = () => {
     setShowMenu(false);
     Alert.alert(
@@ -228,97 +185,85 @@ export default function CustomerLedgerScreen() {
     );
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.centerView}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={ThemeColors.brandLight} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.centerView}>
-          <MaterialIcons name="error-outline" size={48} color={COLORS.error} />
+          <MaterialIcons name="error-outline" size={48} color={ThemeColors.creditRed} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
             <Text style={styles.backLinkText}>{t(`← Go Back`)}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  // ── Derived display values ────────────────────────────────────────────────
   const customerName: string = customer?.name ?? '';
   const customerPhone: string = customer?.phone ?? '';
   const customerBalance: number = (customer as any)?.balance ?? 0;
   const customerInitials: string = getInitials(customerName);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={ThemeColors.brandDark} />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* A. TOP APP BAR */}
-      <View style={styles.topAppBar}>
-        <View style={styles.appBarLeft}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
+      <WavyHeader>
+        <View style={styles.headerContent}>
+          <View style={styles.appBarLeft}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+              <MaterialIcons name="arrow-back" size={24} color={ThemeColors.textOnDark} />
+            </TouchableOpacity>
 
-          <View style={styles.customerMiniInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{customerInitials}</Text>
-            </View>
-            <View style={styles.customerNameCol}>
-              <Text style={styles.customerNameText}>{customerName}</Text>
-              <Text style={styles.customerPhoneText}>{customerPhone}</Text>
+            <View style={styles.customerMiniInfo}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{customerInitials}</Text>
+              </View>
+              <View style={styles.customerNameCol}>
+                <Text style={styles.customerNameText}>{customerName}</Text>
+                <Text style={styles.customerPhoneText}>{customerPhone}</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.appBarRight}>
-          {isReadOnly && (
-            <View style={styles.viewOnlyBadge}>
-              <Text style={styles.viewOnlyText}>{t(`View Only`)}</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            onPress={() => customerPhone ? Linking.openURL('tel:' + customerPhone) : null}
-            style={styles.callButton}
-          >
-            <MaterialIcons name="call" size={22} color={COLORS.primary} />
-          </TouchableOpacity>
-          {isOwner && (
+          <View style={styles.appBarRight}>
             <TouchableOpacity
-              onPress={() => setShowMenu(true)}
-              style={styles.iconButton}
+              onPress={() => customerPhone ? Linking.openURL('tel:' + customerPhone) : null}
+              style={styles.callButton}
             >
-              <MaterialIcons name="more-vert" size={24} color={COLORS.primary} />
+              <MaterialIcons name="call" size={22} color={ThemeColors.textOnDark} />
             </TouchableOpacity>
-          )}
+            {isOwner && (
+              <TouchableOpacity
+                onPress={() => setShowMenu(true)}
+                style={styles.iconButton}
+              >
+                <MaterialIcons name="more-vert" size={24} color={ThemeColors.textOnDark} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      </WavyHeader>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* B. HERO BALANCE CARD */}
-        <View style={styles.heroContainer}>
-          <LinearGradient
-            colors={['#1f108e', '#3730a3']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroGradient}
-          >
+        <Animated.View entering={FadeInDown.delay(100).duration(500)} style={styles.heroContainer}>
+          <View style={styles.heroGradient}>
             <Text style={styles.balanceLabel}>{t(`Total Net Balance`)}</Text>
             <View style={styles.balanceRow}>
               <Text style={styles.currencySymbol}>₹</Text>
@@ -328,36 +273,35 @@ export default function CustomerLedgerScreen() {
             </View>
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={styles.recordPaymentBtn}
-                onPress={() =>
-                  Alert.alert('Record Payment', 'Payment recording coming soon!', [{ text: 'OK' }])
-                }
-              >
-                <MaterialIcons name="payments" size={18} color={COLORS.primary} />
-                <Text style={styles.recordPaymentText}>{t(`Record Payment`)}</Text>
-              </TouchableOpacity>
+              {!isReadOnly && (
+                <TouchableOpacity
+                  style={styles.recordPaymentBtn}
+                  onPress={() => setShowAddEntry(true)}
+                >
+                  <MaterialIcons name="add-circle" size={18} color={ThemeColors.brandDark} />
+                  <Text style={styles.recordPaymentText}>{t(`Add New Entry`)}</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
-                style={styles.shareBtn}
+                style={[styles.shareBtn, isReadOnly && { flex: 1, height: 54 }]}
                 onPress={() =>
                   Share.share({
-                    message: `${customerName} owes ₹${customerBalance.toLocaleString('en-IN')}`,
+                    message: `${customerName} balance at our shop is ₹${customerBalance.toLocaleString('en-IN')}. Please check details in Any Khata app.`,
                   })
                 }
               >
-                <MaterialIcons name="share" size={22} color="#ffffff" />
+                <MaterialIcons name="share" size={20} color="#ffffff" />
+                {isReadOnly && <Text style={{ color: '#fff', marginLeft: 8, fontFamily: Fonts.bold }}>{t(`Share Statement`)}</Text>}
               </TouchableOpacity>
             </View>
-          </LinearGradient>
-        </View>
+          </View>
+        </Animated.View>
 
-        {/* C. LEDGER ENTRIES */}
         <View style={styles.ledgerHeader}>
           {dayLogs.length === 0 ? (
-            /* Empty state */
             <View style={styles.emptyState}>
-              <MaterialIcons name="receipt-long" size={52} color={COLORS.outlineLight} />
+              <MaterialIcons name="receipt-long" size={52} color={ThemeColors.creamBorder} />
               <Text style={styles.emptyStateText}>{t(`No entries yet`)}</Text>
               {!isReadOnly && (
                 <Text style={styles.emptyStateSubText}>
@@ -365,9 +309,12 @@ export default function CustomerLedgerScreen() {
               )}
             </View>
           ) : (
-            dayLogs.map((group: any) => (
-              <View key={group.$id} style={styles.dayGroup}>
-                {/* DATE HEADER */}
+            dayLogs.map((group: any, gIdx: number) => (
+              <Animated.View 
+                key={group.dayLogId} 
+                entering={FadeInDown.delay(200 + gIdx * 100).duration(500)}
+                style={styles.dayGroup}
+              >
                 <View style={styles.dateHeaderRow}>
                   <View style={styles.dateBadge}>
                     <Text style={styles.dateTabText}>
@@ -376,8 +323,7 @@ export default function CustomerLedgerScreen() {
                   </View>
                 </View>
 
-                {/* ENTRY CARDS */}
-                {group.parsedEntries.map((entry: any) => (
+                {group.entries.map((entry: any) => (
                   <View
                     key={entry.id}
                     style={[
@@ -390,10 +336,10 @@ export default function CustomerLedgerScreen() {
                         style={[
                           styles.iconCircle,
                           group.is_locked
-                            ? { backgroundColor: COLORS.containerHigh }
+                            ? { backgroundColor: ThemeColors.creamBorder }
                             : entry.type === 'gave'
-                            ? { backgroundColor: COLORS.errorLight }
-                            : { backgroundColor: COLORS.secondaryLight },
+                            ? { backgroundColor: 'rgba(186,26,26,0.1)' }
+                            : { backgroundColor: 'rgba(0,108,73,0.1)' },
                         ]}
                       >
                         <MaterialIcons
@@ -404,13 +350,13 @@ export default function CustomerLedgerScreen() {
                               ? 'call-made'
                               : 'call-received'
                           }
-                          size={18}
+                          size={16}
                           color={
                             group.is_locked
-                              ? COLORS.outline
+                              ? ThemeColors.textMuted
                               : entry.type === 'gave'
-                              ? COLORS.error
-                              : COLORS.secondary
+                              ? ThemeColors.creditRed
+                              : ThemeColors.paymentGreen
                           }
                         />
                       </View>
@@ -418,7 +364,7 @@ export default function CustomerLedgerScreen() {
                         <Text
                           style={[
                             styles.descriptionText,
-                            group.is_locked && { color: COLORS.outline },
+                            group.is_locked && { color: ThemeColors.textMuted },
                           ]}
                         >
                           {entry.description}
@@ -432,51 +378,37 @@ export default function CustomerLedgerScreen() {
                         style={[
                           styles.amountText,
                           group.is_locked
-                            ? { color: COLORS.outline }
+                            ? { color: ThemeColors.textMuted }
                             : entry.type === 'gave'
-                            ? { color: COLORS.error }
-                            : { color: COLORS.secondary },
+                            ? { color: ThemeColors.creditRed }
+                            : { color: ThemeColors.paymentGreen },
                         ]}
                       >
                         ₹{Number(entry.amount).toLocaleString('en-IN')}
                       </Text>
-                      {!group.is_locked && !isReadOnly && (
-                        <TouchableOpacity
-                          style={styles.editButton}
-                          onPress={() =>
-                            Alert.alert('Edit Entry', 'Entry editing coming soon!', [
-                              { text: 'OK' },
-                            ])
-                          }
-                        >
-                          <MaterialIcons name="edit" size={18} color={COLORS.outline} />
-                        </TouchableOpacity>
-                      )}
                     </View>
                   </View>
                 ))}
 
-                {/* DAY TOTAL ROW */}
                 <View style={styles.dayTotalRow}>
                   <Text style={styles.dayTotalLabel}>{t(`Day Total:`)}</Text>
                   <Text
                     style={[
                       styles.dayTotalAmount,
-                      group.total < 0
-                        ? { color: COLORS.error }
-                        : { color: COLORS.textSecondary },
+                      group.dayTotal < 0
+                        ? { color: ThemeColors.creditRed }
+                        : { color: ThemeColors.textSecondary },
                     ]}
                   >
-                    ₹{Math.abs(group.total).toLocaleString('en-IN')}
+                    ₹{Math.abs(group.dayTotal).toLocaleString('en-IN')}
                   </Text>
                 </View>
-              </View>
+              </Animated.View>
             ))
           )}
         </View>
       </ScrollView>
 
-      {/* E. FAB — hidden in read-only mode */}
       {!isReadOnly && (
         <TouchableOpacity
           style={styles.fab}
@@ -486,7 +418,6 @@ export default function CustomerLedgerScreen() {
         </TouchableOpacity>
       )}
 
-      {/* C. OWNER ACTION SHEET */}
       <Modal
         visible={showMenu}
         animationType="slide"
@@ -504,7 +435,7 @@ export default function CustomerLedgerScreen() {
               style={styles.actionSheetItem}
               onPress={handleDeleteCustomer}
             >
-              <MaterialIcons name="person-remove" size={22} color={COLORS.error} />
+              <MaterialIcons name="person-remove" size={22} color={ThemeColors.creditRed} />
               <Text style={styles.actionSheetItemTextDanger}>{t(`Remove Customer`)}</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -517,7 +448,6 @@ export default function CustomerLedgerScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* D. ADD ENTRY BOTTOM SHEET (Modal) */}
       <Modal
         visible={showAddEntry}
         animationType="slide"
@@ -538,20 +468,17 @@ export default function CustomerLedgerScreen() {
               style={styles.sheetContainer}
               onPress={(e) => e.stopPropagation()}
             >
-              {/* DRAG HANDLE */}
               <View style={styles.dragHandle} />
 
-              {/* SHEET HEADER */}
               <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>{t(`Add Entry for`)}{customerName}</Text>
+                <Text style={styles.sheetTitle}>{t(`New Entry`)}</Text>
                 <TouchableOpacity onPress={() => setShowAddEntry(false)}>
-                  <MaterialIcons name="close" size={22} color={COLORS.outline} />
+                  <MaterialIcons name="close" size={22} color={ThemeColors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
-              {/* AMOUNT INPUT */}
               <View style={styles.amountInputSection}>
-                <Text style={styles.amountLabel}>{t(`AMOUNT TO RECORD`)}</Text>
+                <Text style={styles.amountLabel}>{t(`AMOUNT`)}</Text>
                 <View style={styles.amountInputRow}>
                   <Text style={styles.sheetCurrencySymbol}>₹</Text>
                   <TextInput
@@ -559,26 +486,25 @@ export default function CustomerLedgerScreen() {
                     onChangeText={setAddEntryAmount}
                     keyboardType="numeric"
                     placeholder="0"
-                    placeholderTextColor={COLORS.primaryFixed}
+                    placeholderTextColor={ThemeColors.creamBorder}
                     style={styles.amountInput}
                     textAlign="center"
+                    autoFocus
                   />
                 </View>
               </View>
 
-              {/* DESCRIPTION INPUT */}
               <View style={styles.descInputContainer}>
-                <MaterialIcons name="description" size={20} color={COLORS.outline} />
+                <MaterialIcons name="description" size={20} color={ThemeColors.brandMid} />
                 <TextInput
                   value={addEntryDesc}
                   onChangeText={setAddEntryDesc}
-                  placeholder={t(`e.g., 6 cups chai`)}
-                  placeholderTextColor={COLORS.outline}
+                  placeholder={t(`What is this for? (e.g. 2kg Sugar)`)}
+                  placeholderTextColor={ThemeColors.textMuted}
                   style={styles.descInput}
                 />
               </View>
 
-              {/* ENTRY TYPE TOGGLE */}
               <View style={styles.toggleContainer}>
                 <TouchableOpacity
                   style={[
@@ -590,7 +516,7 @@ export default function CustomerLedgerScreen() {
                   <MaterialIcons
                     name="call-made"
                     size={16}
-                    color={entryType === 'credit' ? '#ffffff' : COLORS.textPrimary}
+                    color={entryType === 'credit' ? '#ffffff' : ThemeColors.textPrimary}
                   />
                   <Text
                     style={[
@@ -611,7 +537,7 @@ export default function CustomerLedgerScreen() {
                   <MaterialIcons
                     name="call-received"
                     size={16}
-                    color={entryType === 'payment' ? '#ffffff' : COLORS.textPrimary}
+                    color={entryType === 'payment' ? '#ffffff' : ThemeColors.textPrimary}
                   />
                   <Text
                     style={[
@@ -623,7 +549,6 @@ export default function CustomerLedgerScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* SAVE BUTTON */}
               <TouchableOpacity
                 style={[styles.saveButton, saving && { opacity: 0.7 }]}
                 onPress={handleSaveEntry}
@@ -633,8 +558,8 @@ export default function CustomerLedgerScreen() {
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <>
-                    <MaterialIcons name="save" size={20} color="#ffffff" />
-                    <Text style={styles.saveButtonText}>{t(`Save Entry`)}</Text>
+                    <MaterialIcons name="check-circle" size={20} color="#ffffff" />
+                    <Text style={styles.saveButtonText}>{t(`Save Transaction`)}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -642,15 +567,14 @@ export default function CustomerLedgerScreen() {
           </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ─── Styles (unchanged from original) ─────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: ThemeColors.creamBase,
   },
   centerView: {
     flex: 1,
@@ -658,143 +582,118 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  errorText: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    marginTop: 12,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  backLink: {
-    marginTop: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
-  backLinkText: {
-    color: COLORS.primary,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 56,
-  },
-  emptyStateText: {
-    marginTop: 14,
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.outline,
-  },
-  emptyStateSubText: {
-    marginTop: 6,
-    fontSize: 13,
-    color: COLORS.outlineLight,
-  },
-  viewOnlyBadge: {
-    backgroundColor: COLORS.primaryFixed,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 4,
-    justifyContent: 'center',
-  },
-  viewOnlyText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.primary,
-    letterSpacing: 0.3,
-  },
-  topAppBar: {
-    height: 64,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textSecondary,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  backLink: {
+    marginTop: 24,
+  },
+  backLinkText: {
+    color: ThemeColors.brandLight,
+    fontFamily: Fonts.bold,
+    fontSize: 15,
   },
   appBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
   },
   iconButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   customerMiniInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 4,
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.primaryFixed,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.primary,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textOnDark,
   },
   customerNameCol: {
     marginLeft: 12,
   },
   customerNameText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: COLORS.primary,
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textOnDark,
   },
   customerPhoneText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.outline,
+    fontSize: 10,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textMuted,
     letterSpacing: 0.5,
-    textTransform: 'uppercase',
   },
   appBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   callButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollContent: {
     paddingBottom: 120,
   },
   heroContainer: {
     marginHorizontal: 20,
-    marginTop: 16,
+    marginTop: -14,
     borderRadius: 24,
+    backgroundColor: ThemeColors.brandDark,
     overflow: 'hidden',
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 8 },
   },
   heroGradient: {
     padding: 24,
   },
   balanceLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontFamily: Fonts.bold,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 4,
-    marginTop: 2,
+    marginTop: 4,
   },
   currencySymbol: {
     color: '#ffffff',
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
+    marginRight: 4,
   },
   balanceAmount: {
     color: '#ffffff',
-    fontSize: 48,
-    fontWeight: '800',
+    fontSize: 42,
+    fontFamily: Fonts.display,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -803,169 +702,207 @@ const styles = StyleSheet.create({
   },
   recordPaymentBtn: {
     flex: 1,
+    height: 54,
     backgroundColor: '#ffffff',
-    borderRadius: 14,
-    paddingVertical: 14,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   recordPaymentText: {
-    color: COLORS.primary,
-    fontWeight: '700',
+    color: ThemeColors.brandDark,
     fontSize: 14,
+    fontFamily: Fonts.bold,
   },
   shareBtn: {
-    width: 52,
-    height: 52,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 14,
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
   ledgerHeader: {
-    marginTop: 28,
+    marginTop: 24,
     paddingHorizontal: 20,
   },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textSecondary,
+  },
+  emptyStateSubText: {
+    marginTop: 4,
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textMuted,
+  },
   dayGroup: {
-    marginBottom: 0,
+    marginBottom: 24,
   },
   dateHeaderRow: {
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   dateBadge: {
-    backgroundColor: COLORS.containerHigh,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 999,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(201,136,58,0.08)',
   },
   dateTabText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.brandMid,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
   entryCard: {
+    backgroundColor: ThemeColors.creamCard,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    marginBottom: 10,
-    borderRadius: 20,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
   },
   entryCardActive: {
-    backgroundColor: COLORS.surface,
-    elevation: 1,
-    shadowColor: '#000',
+    shadowColor: ThemeColors.brandDark,
     shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
   },
   entryCardLocked: {
-    backgroundColor: COLORS.containerLow,
-    opacity: 0.75,
-    borderWidth: 1,
-    borderColor: COLORS.outlineLight,
-    borderStyle: 'dashed',
+    opacity: 0.7,
+    backgroundColor: ThemeColors.creamBase,
   },
   entryLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
     flex: 1,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   entryTextCol: {
-    marginLeft: 0,
+    marginLeft: 12,
     flex: 1,
   },
   descriptionText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontFamily: Fonts.semibold,
+    color: ThemeColors.textPrimary,
   },
   timeText: {
-    fontSize: 12,
-    color: COLORS.outline,
+    fontSize: 10,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textMuted,
     marginTop: 2,
   },
   entryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-end',
   },
   amountText: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  editButton: {
-    padding: 6,
+    fontSize: 16,
+    fontFamily: Fonts.bold,
   },
   dayTotalRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 8,
-    marginBottom: 24,
     alignItems: 'center',
+    marginTop: 8,
+    paddingRight: 4,
   },
   dayTotalLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.outline,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textMuted,
+    marginRight: 6,
   },
   dayTotalAmount: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 13,
+    fontFamily: Fonts.bold,
   },
   fab: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 30,
     right: 24,
     width: 60,
     height: 60,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
+    borderRadius: 30,
+    backgroundColor: ThemeColors.brandDark,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(31,16,142,0.2)',
+    backgroundColor: 'rgba(26, 8, 3, 0.6)',
     justifyContent: 'flex-end',
+  },
+  actionSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: ThemeColors.creamBorder,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  actionSheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 16,
+  },
+  actionSheetItemTextDanger: {
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.creditRed,
+  },
+  actionSheetCancel: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: ThemeColors.creamBorder,
+    paddingTop: 24,
+    justifyContent: 'center',
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textSecondary,
   },
   keyboardView: {
     width: '100%',
   },
   sheetContainer: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  dragHandle: {
-    width: 48,
-    height: 6,
-    backgroundColor: COLORS.outlineLight,
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 20,
+    padding: 32,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -974,134 +911,103 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sheetTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    fontSize: 20,
+    fontFamily: Fonts.extrabold,
+    color: ThemeColors.brandDark,
   },
   amountInputSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
   },
   amountLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.primary,
-    letterSpacing: 1.5,
-    textAlign: 'center',
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.brandMid,
+    letterSpacing: 1,
     marginBottom: 8,
   },
   amountInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
   },
   sheetCurrencySymbol: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: COLORS.primary,
-    opacity: 0.5,
+    fontSize: 32,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.brandDark,
+    marginRight: 8,
   },
   amountInput: {
-    width: 180,
-    fontSize: 48,
-    fontWeight: '800',
-    color: COLORS.primary,
-    backgroundColor: 'transparent',
-    padding: 0,
+    fontSize: 56,
+    fontFamily: Fonts.display,
+    color: ThemeColors.textPrimary,
+    minWidth: 120,
   },
   descInputContainer: {
-    backgroundColor: COLORS.containerLow,
-    borderRadius: 16,
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
+    backgroundColor: ThemeColors.creamBase,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
   },
   descInput: {
     flex: 1,
+    marginLeft: 12,
     fontSize: 15,
-    color: COLORS.textPrimary,
+    fontFamily: Fonts.regular,
+    color: ThemeColors.textPrimary,
   },
   toggleContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.containerLow,
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: 24,
-    gap: 4,
+    gap: 12,
+    marginBottom: 32,
   },
   toggleButton: {
     flex: 1,
+    height: 50,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
     gap: 8,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: ThemeColors.creamBorder,
+    backgroundColor: ThemeColors.creamCard,
   },
   toggleActiveCredit: {
-    backgroundColor: COLORS.error,
+    backgroundColor: ThemeColors.creditRed,
+    borderColor: ThemeColors.creditRed,
   },
   toggleActivePayment: {
-    backgroundColor: COLORS.secondary,
+    backgroundColor: ThemeColors.paymentGreen,
+    borderColor: ThemeColors.paymentGreen,
   },
   toggleText: {
-    fontWeight: '700',
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: ThemeColors.textPrimary,
   },
   saveButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 18,
-    paddingVertical: 18,
+    height: 60,
+    backgroundColor: ThemeColors.brandDark,
+    borderRadius: Radius.pill,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
     elevation: 4,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowColor: ThemeColors.brandDark,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
   saveButtonText: {
     color: '#ffffff',
-    fontWeight: '800',
     fontSize: 16,
-  },
-  actionSheet: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  actionSheetItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.outlineLight,
-  },
-  actionSheetItemTextDanger: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.error,
-  },
-  actionSheetCancel: {
-    borderBottomWidth: 0,
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  actionSheetCancelText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    flex: 1,
+    fontFamily: Fonts.bold,
   },
 });

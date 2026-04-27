@@ -79,7 +79,7 @@ export default function CustomerLedgerScreen() {
           <EmptyState message="No entries yet" description="Your transactions will appear here" icon="📒" />
         ) : (
           dayLogs.map((log) => (
-            <DayLogCard key={log.dayLogId} dayLog={log} />
+            <DayLogCard key={log.dayLogId} dayLog={log} onAddEntry={() => {}} />
           ))
         )}
       </ScrollView>
