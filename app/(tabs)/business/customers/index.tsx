@@ -147,7 +147,10 @@ export default function CustomersScreen() {
                           <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: ThemeColors.textPrimary }}>
                             {item.name}
                           </Text>
-                          <Text style={{ fontFamily: Fonts.regular, fontSize: 11, color: ThemeColors.textSecondary, marginTop: 2 }}>
+                          <Text style={{ fontFamily: Fonts.regular, fontSize: 10, color: ThemeColors.textSecondary, marginTop: 1 }}>
+                            Code: {item.linkCode || '------'}
+                          </Text>
+                          <Text style={{ fontFamily: Fonts.regular, fontSize: 11, color: ThemeColors.textSecondary, marginTop: 1 }}>
                             {item.phone || t(`No phone`)}
                           </Text>
                         </View>
@@ -170,7 +173,7 @@ export default function CustomersScreen() {
       {/* FAB */}
       <Animated.View 
         entering={FadeInUp.delay(500).duration(360).springify()}
-        style={{ position: 'absolute', right: 24, bottom: 94 }}
+        style={{ position: 'absolute', right: 24, bottom: 90 }}
       >
         <TouchableOpacity
           style={styles.fab}

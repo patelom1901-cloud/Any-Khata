@@ -37,6 +37,7 @@ const { width } = Dimensions.get('window');
 const LANGUAGE_OPTIONS: { locale: Locale; label: string; nativeName: string }[] = [
   { locale: 'en', label: 'English', nativeName: 'English' },
   { locale: 'gu', label: 'Gujarati', nativeName: 'ગુજરાતી' },
+  { locale: 'hi', label: 'Hindi', nativeName: 'हिंदी' },
 ];
 
 export default function ProfileScreen() {

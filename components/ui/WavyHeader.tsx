@@ -39,10 +39,6 @@ export const WavyHeader = ({ children }: { children: React.ReactNode }) => {
           d={`M0,0 C${W*0.15},28 ${W*0.35},38 ${W*0.5},34 C${W*0.65},30 ${W*0.85},16 ${W},28 L${W},0 Z`}
           fill={Colors.brandDark}
         />
-        <Path
-          d={`M0,10 C${W*0.2},32 ${W*0.4},20 ${W*0.6},30 C${W*0.8},38 ${W*0.9},22 ${W},32 L${W},38 L0,38 Z`}
-          fill="rgba(201,136,58,0.08)"
-        />
       </Svg>
     </Animated.View>
   );

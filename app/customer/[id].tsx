@@ -235,6 +235,9 @@ export default function CustomerLedgerScreen() {
               <View style={styles.customerNameCol}>
                 <Text style={styles.customerNameText}>{customerName}</Text>
                 <Text style={styles.customerPhoneText}>{customerPhone}</Text>
+                <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                  Code: {(customer as any).linkCode || '------'}
+                </Text>
               </View>
             </View>
           </View>
@@ -837,7 +840,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 90,
     right: 24,
     width: 60,
     height: 60,

@@ -98,13 +98,16 @@ export const getAuthUser = async () => {
  * Called after successful Google login
  */
 export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
+  console.log('[getOrCreateUserDoc] Called with authUser.$id:', authUser?.$id, 'email:', authUser?.email);
   // Check if user doc exists
   const existing = await databases.listDocuments(DB_ID, COL_USERS, [
     (await import('react-native-appwrite')).Query.equal('userId', authUser.$id),
     (await import('react-native-appwrite')).Query.limit(1),
   ]);
+  console.log('[getOrCreateUserDoc] Query result: total =', existing.total, ', docs count =', existing.documents.length);
 
   if (existing.documents.length > 0) {
+    console.log('[getOrCreateUserDoc] Existing user doc found. Returning cached userDoc.');
     const doc = existing.documents[0] as any;
     const userDoc: AppUser = {
       $id: doc.$id,
@@ -116,15 +119,26 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
       isSubscribed: !!doc.is_subscribed,
     };
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userDoc));
+    console.log('[getOrCreateUserDoc] Returning EXISTING userDoc:', JSON.stringify(userDoc));
     return userDoc;
   }
 
   // Create new user doc — only write fields that exist in the Appwrite schema
-  const newDoc = await databases.createDocument(DB_ID, COL_USERS, authUser.$id, {
-    userId: authUser.$id,
-    has_business: false,
-    is_subscribed: false,
-  });
+  console.log('[getOrCreateUserDoc] No existing doc found. Creating NEW user doc for:', authUser.$id);
+  let newDoc: any;
+  try {
+    newDoc = await databases.createDocument(DB_ID, COL_USERS, authUser.$id, {
+      userId: authUser.$id,
+      name: authUser.name ?? authUser.email.split('@')[0],
+      email: authUser.email ?? '',
+      createdAt: new Date().toISOString(),
+      has_business: false,
+    });
+    console.log('[getOrCreateUserDoc] createDocument succeeded. newDoc.$id:', newDoc.$id);
+  } catch (createErr: any) {
+    console.log('=== CAUGHT ERROR (getOrCreateUserDoc createDocument) ===', JSON.stringify(createErr), 'message:', createErr?.message);
+    throw createErr;
+  }
 
   const userDoc: AppUser = {
     $id: newDoc.$id,
@@ -136,6 +150,7 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
     isSubscribed: !!(newDoc as any).is_subscribed,
   };
   await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userDoc));
+  console.log('[getOrCreateUserDoc] Returning NEW userDoc:', JSON.stringify(userDoc));
   return userDoc;
 };
 
@@ -195,24 +210,31 @@ export const deleteAppwriteAccount = async (): Promise<void> => {
  * CRITICAL: If account.get() fails, clears all local cached state
  */
 export const hydrateSession = async (): Promise<AppUser | null> => {
+  console.log('[hydrateSession] Starting...');
   try {
     // Check if there's an active Appwrite session
+    console.log('[hydrateSession] Calling account.get()...');
     const authUser = await account.get();
+    console.log('[hydrateSession] account.get() result:', JSON.stringify(authUser));
     if (!authUser) {
       // No session — clear any stale cached data
+      console.log('[hydrateSession] No authUser returned. Clearing cache.');
       await clearCachedUser();
       return null;
     }
 
     // Fetch the user document from the database
     const { Query } = await import('react-native-appwrite');
+    console.log('[hydrateSession] Fetching user doc for userId:', authUser.$id);
     const existing = await databases.listDocuments(DB_ID, COL_USERS, [
       Query.equal('userId', authUser.$id),
       Query.limit(1),
     ]);
+    console.log('[hydrateSession] User doc query result: total =', existing.total, ', docs count =', existing.documents.length);
 
     if (existing.documents.length === 0) {
       // Session exists but no user doc — create one
+      console.log('[hydrateSession] No user doc found. Creating via getOrCreateUserDoc...');
       return await getOrCreateUserDoc(authUser);
     }
 
@@ -229,9 +251,11 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
     
     // Cache the user doc
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userDoc));
+    console.log('[hydrateSession] Returning existing userDoc:', JSON.stringify(userDoc));
     return userDoc;
   } catch (error) {
     // CRITICAL: Clear any stale cached data when session validation fails
+    console.log('=== CAUGHT ERROR (hydrateSession) ===', JSON.stringify(error));
     await clearCachedUser();
     return null;
   }

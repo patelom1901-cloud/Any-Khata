@@ -112,6 +112,11 @@ export default function CustomerDetailScreen() {
   const totalDue = totalGave - totalGot;
   const balanceColor = totalDue > 0 ? ThemeColors.creditRed : ThemeColors.paymentGreen;
 
+  const isToday = (dateString: string) => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    return dateString === today;
+  }
+
   const todayString = getTodayString();
   const todayLog = dayLogs.find(l => l.date === todayString);
   const isTodayLocked = todayLog?.isLocked;
@@ -163,6 +168,9 @@ export default function CustomerDetailScreen() {
         <View style={styles.headerInfo}>
           <Text style={styles.customerName}>{customer.name}</Text>
           <Text style={styles.customerPhone}>{customer.phone || t('No phone')}</Text>
+          <Text style={{ fontFamily: Fonts.regular, fontSize: 10, color: ThemeColors.textSecondary, marginTop: 2 }}>
+            Code: {customer.linkCode || '------'}
+          </Text>
         </View>
 
         {/* DARK BALANCE CARD */}
@@ -260,12 +268,12 @@ export default function CustomerDetailScreen() {
                         }}
                         onDeactivate={() => setIsDeletingMode(false)}
                         onDelete={() => handleDeleteEntry(entry, log.dayLogId)}
-                        disabled={isLocked}
+                        disabled={!isToday(log.date)}
                       >
                         <TouchableOpacity
                           style={styles.entryCard}
-                          onPress={() => !isLocked && handleEditEntry(entry, log.dayLogId)}
-                          activeOpacity={isLocked ? 1 : 0.7}
+                          onPress={() => isToday(log.date) && handleEditEntry(entry, log.dayLogId)}
+                          activeOpacity={isToday(log.date) ? 0.7 : 1}
                         >
                           <View style={[styles.entryIndicator, { backgroundColor: amountColor }]} />
 
@@ -282,7 +290,7 @@ export default function CustomerDetailScreen() {
                             <Text style={[styles.entryAmount, { color: amountColor }]}>
                               {isGave ? '' : '-'}₹{Number(entry.amount).toLocaleString('en-IN')}
                             </Text>
-                            {!isLocked && (
+                            {isToday(log.date) && (
                               <MaterialIcons name="edit" size={14} color={ThemeColors.textMuted} style={{ marginTop: 4 }} />
                             )}
                           </View>
@@ -502,7 +510,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 90,
     right: 24,
     width: 64,
     height: 64,

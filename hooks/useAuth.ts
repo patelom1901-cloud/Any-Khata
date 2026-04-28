@@ -24,32 +24,49 @@ export const useAuth = () => {
 
   // Handle the deep link callback AFTER browser closes
   useEffect(() => {
-    if (!url) return;
-    if (handledUrl.current === url) return; // prevent double-fire
+    console.log('=== AUTH CALLBACK FIRED === url:', url);
+    if (!url) {
+      console.log('[useAuth] useEffect: url is null/undefined, skipping');
+      return;
+    }
+    if (handledUrl.current === url) {
+      console.log('[useAuth] useEffect: url already handled, skipping double-fire:', url);
+      return;
+    }
     handledUrl.current = url;
 
     const parsed = Linking.parse(url);
     const secret = parsed.queryParams?.secret as string;
     const userId = parsed.queryParams?.userId as string;
+    console.log('[useAuth] Parsed URL params — userId:', userId, 'secret present:', !!secret);
 
     if (secret && userId) {
       const finalizeLogin = async () => {
         try {
+          console.log('Step 1 - Creating session with userId:', userId);
           setLoading(true);
           setStoreLoading(true);
           await account.createSession(userId, secret);
+          console.log('Step 1 - createSession() succeeded');
+
+          console.log('Step 2 - Getting auth user (account.get())...');
           const authUser = await getAuthUser();
+          console.log('Step 2 - Session/Account result:', JSON.stringify(authUser));
           if (!authUser) {
             throw new Error('Could not retrieve authenticated user after login.');
           }
 
+          console.log('Step 3 - Fetching user document for ID:', authUser.$id);
           // Delegate user doc creation to lib/auth.ts (single source of truth)
           const userDoc = await getOrCreateUserDoc(authUser);
+          console.log('Step 4 - User doc result:', JSON.stringify(userDoc));
           setUser(userDoc);
           // setUser already sets hasBusiness in the store based on userDoc.has_business
           // Always go to home after login — no registration gate
+          console.log('Step 5 - Navigating to: /(tabs)/home');
           router.replace('/(tabs)/home');
         } catch (err: any) {
+          console.log('=== CAUGHT ERROR (finalizeLogin) ===', JSON.stringify(err), 'message:', err?.message);
           setError(err?.message || 'Login finalizing failed');
         } finally {
           setLoading(false);
@@ -58,10 +75,13 @@ export const useAuth = () => {
       };
 
       finalizeLogin();
+    } else {
+      console.log('[useAuth] useEffect: URL has no userId+secret — not an OAuth callback. Skipping.');
     }
   }, [url, setUser, setStoreLoading, setError]);
 
   const loginWithGoogle = async () => {
+    console.log('[loginWithGoogle] Login button pressed. loading:', loading);
     if (loading) return; // prevent double tap
     setLoading(true);
     setStoreLoading(true);
@@ -69,33 +89,42 @@ export const useAuth = () => {
     try {
       // Clear any existing session first
       try {
+        console.log('[loginWithGoogle] Attempting to delete existing session...');
         await account.deleteSession('current');
+        console.log('[loginWithGoogle] Existing session deleted.');
       } catch (_) {
         // No existing session, that's fine
+        console.log('[loginWithGoogle] No existing session to delete (expected for new users).');
       }
 
       const redirectUri = makeRedirectUri({});
+      console.log('[loginWithGoogle] redirectUri:', redirectUri);
       // createOAuth2Token returns a URL — we must open it ourselves
       const oauthUrl = await account.createOAuth2Token(
         OAuthProvider.Google,
         redirectUri,
         redirectUri
       );
+      console.log('[loginWithGoogle] oauthUrl received:', oauthUrl?.toString());
 
       if (!oauthUrl) {
         throw new Error('Failed to create OAuth token URL');
       }
+      console.log('[loginWithGoogle] Opening WebBrowser...');
       const result = await WebBrowser.openAuthSessionAsync(
         oauthUrl.toString(),
         redirectUri
       );
+      console.log('[loginWithGoogle] WebBrowser result type:', result.type, 'full result:', JSON.stringify(result));
       if (result.type !== 'success') {
+        console.log('[loginWithGoogle] Browser closed without success — type was:', result.type);
         setLoading(false);
         setStoreLoading(false);
       }
       // If success → useEffect above handles session creation via useURL()
 
     } catch (e: any) {
+      console.log('=== CAUGHT ERROR (loginWithGoogle) ===', JSON.stringify(e), 'message:', e?.message);
       setError(e?.message || 'OAuth error');
       setLoading(false);
       setStoreLoading(false);

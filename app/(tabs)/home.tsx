@@ -507,9 +507,14 @@ const HomeScreen = () => {
                             <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: ThemeColors.textPrimary }}>
                               {customer.name}
                             </Text>
-                            <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textSecondary }}>
-                              {customer.lastActivity}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: ThemeColors.textSecondary, marginRight: 8 }}>
+                                Code: {customer.linkCode || '------'}
+                              </Text>
+                              <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: ThemeColors.textSecondary }}>
+                                {customer.lastActivity}
+                              </Text>
+                            </View>
                           </View>
 
                           <Text style={{ fontFamily: Fonts.display, fontSize: 16, color: ThemeColors.creditRed }}>

@@ -28,6 +28,7 @@ export const CustomerCard = ({ customer, onPress }: Props) => {
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{customer.name}</Text>
+        <Text style={styles.linkCode}>Code: {customer.linkCode || '------'}</Text>
         <Text style={styles.phone}>{formatPhoneDisplay(customer.phone)}</Text>
       </View>
       <View style={styles.balance}>
@@ -86,6 +87,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  linkCode: {
+    fontSize: 10,
+    color: '#A88060',
+    marginTop: 1,
   },
   balance: {
     alignItems: 'flex-end',
