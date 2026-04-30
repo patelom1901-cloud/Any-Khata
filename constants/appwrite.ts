@@ -15,10 +15,8 @@ export const COL_CUSTOMERS = process.env.EXPO_PUBLIC_COL_CUSTOMERS!;
 export const COL_DAY_LOGS = process.env.EXPO_PUBLIC_COL_DAY_LOGS!;
 export const COL_ADS = process.env.EXPO_PUBLIC_COL_ADS!;
 export const COL_SUBSCRIPTIONS = process.env.EXPO_PUBLIC_COL_SUBSCRIPTIONS!;
+export const COL_PAYMENT_ORDERS = process.env.EXPO_PUBLIC_COL_PAYMENT_ORDERS!;
 
 // Storage
 export const BUCKET_ADS = process.env.EXPO_PUBLIC_APPWRITE_AD_BUCKET_ID!;
 
-// Cashfree
-export const CASHFREE_ENV = process.env.EXPO_PUBLIC_CASHFREE_ENV!;
-export const CASHFREE_APP_ID = process.env.EXPO_PUBLIC_CASHFREE_APP_ID!;

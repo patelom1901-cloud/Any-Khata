@@ -14,7 +14,7 @@ export const Colors = {
 } as const;
 
 export const Fonts = {
-  display:        'PlayfairDisplay_700Bold',
+  display:        'PlusJakartaSans_800ExtraBold',
   regular:        'PlusJakartaSans_400Regular',
   semibold:       'PlusJakartaSans_600SemiBold',
   bold:           'PlusJakartaSans_700Bold',

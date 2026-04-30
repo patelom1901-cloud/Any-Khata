@@ -8,9 +8,8 @@
     "userInterfaceStyle": "light",
     "scheme": "anykhata",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0F4C75"
+      "resizeMode": "cover",
+      "backgroundColor": "#FAF4EE"
     },
     "ios": {
       "supportsTablet": true,

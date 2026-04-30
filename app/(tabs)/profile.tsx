@@ -23,7 +23,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBusinessStore } from '../../store/businessStore';
 import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveSubscription, getBusinessByOwner, getAdsByUserId } from '../../lib/database';
 import { clearCachedUser } from '../../lib/auth';
-import { deleteUserAccount } from '../../lib/functions';
+import { deleteUserAccount, createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { FEATURES } from '../../constants/config';
 import type { Locale } from '../../constants/i18n';
 import { useTranslation } from "../../hooks/useTranslation";
@@ -113,37 +113,30 @@ export default function ProfileScreen() {
       setPaying(true);
       const orderId = 'order_' + Date.now();
       const redirectUri = makeRedirectUri({ path: 'payment-callback' });
-      const payload = {
-        link_id: orderId,
-        link_amount: 11,
-        link_currency: "INR",
-        link_purpose: "Become a Business Owner",
-        customer_details: { customer_phone: user?.phone || "9999999999" },
-        link_meta: { return_url: redirectUri + `?order_id={link_id}&type=business${business?.businessId ? `&reference_id=${business.businessId}` : ''}` }
-      };
-
-      const res = await fetch('https://sandbox.cashfree.com/pg/links', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'x-client-id': process.env.EXPO_PUBLIC_CASHFREE_APP_ID,
-          'x-client-secret': process.env.EXPO_PUBLIC_CASHFREE_SECRET,
-          'x-api-version': '2023-08-01'
-        },
-        body: JSON.stringify(payload)
+      
+      const { link_url } = await createCashfreeOrder({
+        amount: 11,
+        orderId,
+        customerPhone: user?.phone || "9999999999",
+        customerName: user?.name || "User",
+        type: 'business',
+        referenceId: business?.businessId,
+        redirectUri,
+        userId: user!.userId
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.link_url) throw new Error(data.message || 'Failed to create payment link');
-      const result = await WebBrowser.openAuthSessionAsync(data.link_url, redirectUri);
+      const result = await WebBrowser.openAuthSessionAsync(link_url, redirectUri);
       if (result.type === 'success') {
-        await createBusinessSubscription({ userId: user!.userId, cashfreeOrderId: orderId });
-        setIsSubscribed(true);
-        Alert.alert(t('common.success'), t('profile.payment_success'));
+        const verifyRes = await verifyCashfreePayment({ orderId });
+        if (verifyRes.success) {
+          setIsSubscribed(true);
+          Alert.alert(t('common.success'), t('profile.payment_success'));
+        } else {
+          Alert.alert(t('common.error'), t('profile.payment_failed'));
+        }
       }
     } catch (err: any) {
-      Alert.alert(t('common.error'), t('profile.payment_failed'));
+      Alert.alert(t('common.error'), err.message || t('profile.payment_failed'));
     } finally {
       setPaying(false);
     }

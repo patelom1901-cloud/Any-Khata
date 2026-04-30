@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { hydrateSession } from '../lib/auth';
 import { getBusinessByOwner, checkBusinessSubscriptionStatus } from '../lib/database';
-import { Colors } from '../constants/colors';
+import { Colors } from '../constants/theme';
+import StartupAnimation from '../components/ui/StartupAnimation';
 
 /**
  * Root entry point — performs session hydration on app startup
@@ -12,13 +13,15 @@ import { Colors } from '../constants/colors';
  */
 export default function Index() {
   const [isHydrating, setIsHydrating] = useState(true);
+  const [isAnimationFinished, setIsAnimationFinished] = useState(false);
+  const [nextRoute, setNextRoute] = useState<string | null>(null);
   const { setUser, setHasBusiness, setIsSubscribed } = useAuthStore();
 
   useEffect(() => {
     const performSessionHydration = async () => {
       console.log('[index.tsx] performSessionHydration: START');
       try {
-        // Check if an active session exists (this also clears stale cache if session is invalid)
+        // Check if an active session exists
         console.log('[index.tsx] Calling hydrateSession()...');
         const userDoc = await hydrateSession();
         console.log('[index.tsx] hydrateSession() result:', JSON.stringify(userDoc));
@@ -37,23 +40,22 @@ export default function Index() {
           const isSubscribed = await checkBusinessSubscriptionStatus(userDoc.userId);
           console.log('[index.tsx] isSubscribed:', isSubscribed);
           setIsSubscribed(isSubscribed);
-          console.log('[index.tsx] Navigating to /(tabs)/home');
-          router.replace('/(tabs)/home');
+          setNextRoute('/(tabs)/home');
         } else {
           // Clear all auth state when no valid session exists
-          console.log('[index.tsx] No userDoc — redirecting to /(auth)/login');
+          console.log('[index.tsx] No userDoc — setting next route to login');
           setUser(null);
           setHasBusiness(false);
           setIsSubscribed(false);
-          router.replace('/(auth)/login');
+          setNextRoute('/(auth)/login');
         }
       } catch (error) {
-        // On error, clear all auth state and redirect to login
+        // On error, clear all auth state and set next route to login
         console.log('=== CAUGHT ERROR (performSessionHydration) ===', JSON.stringify(error));
         setUser(null);
         setHasBusiness(false);
         setIsSubscribed(false);
-        router.replace('/(auth)/login');
+        setNextRoute('/(auth)/login');
       } finally {
         setIsHydrating(false);
         console.log('[index.tsx] performSessionHydration: DONE');
@@ -63,10 +65,17 @@ export default function Index() {
     performSessionHydration();
   }, []);
 
-  // Show loading spinner while hydrating session
+  // Coordinate the transition after both hydration and animation are done
+  useEffect(() => {
+    if (!isHydrating && isAnimationFinished && nextRoute) {
+      console.log('[index.tsx] Both hydration and animation finished. Redirecting to:', nextRoute);
+      router.replace(nextRoute as any);
+    }
+  }, [isHydrating, isAnimationFinished, nextRoute]);
+
   return (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color={Colors.primary} />
+      <StartupAnimation onFinish={() => setIsAnimationFinished(true)} />
     </View>
   );
 }
@@ -74,8 +83,6 @@ export default function Index() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.creamBase,
   },
 });

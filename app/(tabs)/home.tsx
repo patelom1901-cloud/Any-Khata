@@ -358,41 +358,42 @@ const HomeScreen = () => {
         {/* 2. BALANCE CARD */}
         <Animated.View entering={FadeInDown.delay(300).duration(380).springify()}>
           <CardWrapper style={{ marginTop: 0, padding: 18, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
-            <SectionLabel>{t('home.total_outstanding')}</SectionLabel>
-            <CountUpAmount 
-              value={summary.total} 
-              style={{ fontFamily: Fonts.display, fontSize: 40, color: ThemeColors.textPrimary, marginTop: 4 }} 
-            />
+            {/* Row 1: Total Outstanding (Big) */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: ThemeColors.textSecondary }}>{t('home.total_outstanding')}</Text>
+              <CountUpAmount 
+                value={totalGiven} 
+                style={{ fontFamily: Fonts.display, fontSize: 32, color: ThemeColors.creditRed, marginTop: 4 }} 
+              />
+            </View>
             
             <View style={{ height: 1, backgroundColor: '#F2E6DA', marginVertical: 14 }} />
 
+            {/* Row 2: Three Boxes (Active Customers, Given, Collected) */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {/* Chip 1: Customers */}
-              <Animated.View 
-                entering={FadeInDown.delay(220).duration(300).springify()}
-                style={{ flex: 1, backgroundColor: '#FAF4EE', borderRadius: 11, padding: 10, marginRight: 8, alignItems: 'center' }}
+              {/* Chip: Active Customers */}
+              <View 
+                style={{ flex: 1, backgroundColor: '#FAF4EE', borderRadius: 11, padding: 10, marginRight: 8, alignItems: 'center', borderWidth: 1, borderColor: '#E4D0BC' }}
               >
-                <Text style={{ fontFamily: Fonts.display, fontSize: 22, color: ThemeColors.textPrimary }}>{summary.count}</Text>
+                <Text style={{ fontFamily: Fonts.display, fontSize: 18, color: ThemeColors.textPrimary }}>{summary.count}</Text>
                 <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.active_customers')}</Text>
-              </Animated.View>
+              </View>
 
-              {/* Chip 2: Given */}
-              <Animated.View 
-                entering={FadeInDown.delay(280).duration(300).springify()}
+              {/* Chip: Given */}
+              <View 
                 style={{ flex: 1, backgroundColor: '#FFF5F4', borderRadius: 11, padding: 10, marginRight: 8, alignItems: 'center', borderWidth: 1, borderColor: '#F8DADA' }}
               >
-                <Text style={{ fontFamily: Fonts.display, fontSize: 22, color: ThemeColors.creditRed }}>₹{totalGiven.toLocaleString('en-IN')}</Text>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.given') || 'GIVEN'}</Text>
-              </Animated.View>
+                <Text style={{ fontFamily: Fonts.display, fontSize: 18, color: ThemeColors.creditRed }}>₹{totalGiven.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.given')}</Text>
+              </View>
 
-              {/* Chip 3: Got */}
-              <Animated.View 
-                entering={FadeInDown.delay(340).duration(300).springify()}
+              {/* Chip: Collected */}
+              <View 
                 style={{ flex: 1, backgroundColor: '#F2FBF2', borderRadius: 11, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#BCD8BC' }}
               >
-                <Text style={{ fontFamily: Fonts.display, fontSize: 22, color: ThemeColors.paymentGreen }}>₹{totalGot.toLocaleString('en-IN')}</Text>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.got') || 'GOT'}</Text>
-              </Animated.View>
+                <Text style={{ fontFamily: Fonts.display, fontSize: 18, color: ThemeColors.paymentGreen }}>₹{totalGot.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 8.5, color: ThemeColors.textSecondary, textTransform: 'uppercase', marginTop: 2 }}>{t('home.got')}</Text>
+              </View>
             </View>
           </CardWrapper>
         </Animated.View>

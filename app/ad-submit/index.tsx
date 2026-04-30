@@ -23,6 +23,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { createAd } from '../../lib/database';
+import { createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
+import { useAuthStore } from '../../store/authStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { WavyHeader } from '../../components/ui/WavyHeader';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
@@ -30,6 +32,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 export default function AdSubmitScreen() {
   const { t } = useTranslation();
+  const { user } = useAuthStore();
 
   const adSchema = useMemo(() => z.object({
     businessName: z.string().min(2, t('ad_submit.error_business_name')),
@@ -142,62 +145,37 @@ export default function AdSubmitScreen() {
       const orderId = 'ad_order_' + Date.now();
       const redirectUri = makeRedirectUri({ path: 'payment-callback' });
 
-      const payload = {
-        link_id: orderId,
-        link_amount: 100,
-        link_currency: 'INR',
-        link_purpose: 'Ad Placement on Any Khata',
-        customer_details: {
-          customer_phone: data.phone,
-        },
-        link_meta: {
-          return_url: redirectUri + '?order_id={link_id}&type=ad',
-        },
-      };
-
-      const res = await fetch('https://sandbox.cashfree.com/pg/links', {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          'x-client-id': process.env.EXPO_PUBLIC_CASHFREE_APP_ID!,
-          'x-client-secret': process.env.EXPO_PUBLIC_CASHFREE_SECRET!,
-          'x-api-version': '2023-08-01',
-        },
-        body: JSON.stringify(payload),
+      const { link_url } = await createCashfreeOrder({
+        amount: 100,
+        orderId,
+        customerPhone: data.phone,
+        customerName: data.ownerName,
+        type: 'ad',
+        redirectUri,
+        userId: user!.userId,
+        adPayload: {
+          business_name: data.businessName,
+          owner_name: data.ownerName,
+          phone: data.phone,
+          image_url: imageUrl,
+          gstin: data.gstin || undefined,
+          website_url: data.websiteUrl || undefined,
+          maps_url: data.mapsUrl || undefined,
+        }
       });
 
-      const linkData = await res.json();
-      if (!res.ok || !linkData.link_url) {
-        throw new Error(linkData.message || t('common.error'));
+      const result = await WebBrowser.openAuthSessionAsync(link_url, redirectUri);
+
+      if (result.type === 'success') {
+        const verifyRes = await verifyCashfreePayment({ orderId });
+        if (verifyRes.success) {
+          Alert.alert(t('ad_submit.success_title'), t('ad_submit.success_msg'), [
+            { text: t('common.ok'), onPress: () => router.push('/(tabs)/ads' as any) },
+          ]);
+        } else {
+          Alert.alert(t('common.error'), t('profile.payment_failed'));
+        }
       }
-
-      const result = await WebBrowser.openAuthSessionAsync(linkData.link_url, redirectUri);
-
-      if (result.type !== 'success') {
-        Alert.alert(t('common.error'), t('profile.payment_failed'));
-        return;
-      }
-
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 30);
-      const subscription_expiry = expiryDate.toISOString().split('T')[0];
-
-      await createAd({
-        business_name: data.businessName,
-        owner_name: data.ownerName,
-        phone: data.phone,
-        image_url: imageUrl,
-        subscription_status: 'active',
-        subscription_expiry,
-        gstin: data.gstin || undefined,
-        website_url: data.websiteUrl || undefined,
-        maps_url: data.mapsUrl || undefined,
-      });
-
-      Alert.alert(t('ad_submit.success_title'), t('ad_submit.success_msg'), [
-        { text: t('common.ok'), onPress: () => router.push('/(tabs)/ads' as any) },
-      ]);
     } catch (err: any) {
       Alert.alert(t('common.error'), err.message || t('common.error'));
     } finally {

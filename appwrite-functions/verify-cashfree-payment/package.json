@@ -1,0 +1,10 @@
+{
+  "name": "verify-cashfree-payment",
+  "version": "1.0.0",
+  "description": "Verifies Cashfree payment status and triggers DB updates",
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "node-appwrite": "^11.0.0"
+  }
+}

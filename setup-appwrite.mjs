@@ -257,6 +257,20 @@ async function main() {
   await createIndex(DB, "ads", "idx_status", "key", ["subscriptionStatus"], ["ASC"]);
   console.log("");
 
+  // ── payment_orders ──
+  console.log("  📁 payment_orders");
+  await createCollection(DB, "payment_orders", "payment_orders", [
+    Permission.read(Role.user("userId")),
+  ]);
+  await createStringAttr(DB, "payment_orders", "orderId", 255, true);
+  await createStringAttr(DB, "payment_orders", "userId", 255, true);
+  await createFloatAttr(DB, "payment_orders", "amount", true);
+  await createStringAttr(DB, "payment_orders", "status", 50, true);
+  await createStringAttr(DB, "payment_orders", "type", 50, true);
+  await createStringAttr(DB, "payment_orders", "adPayload", 65000, false);
+  await createIndex(DB, "payment_orders", "idx_orderId", "key", ["orderId"], ["ASC"]);
+  console.log("");
+
   // ── subscriptions ──
   console.log("  📁 subscriptions");
   await createCollection(DB, "subscriptions", "subscriptions", [
@@ -307,6 +321,7 @@ async function main() {
   console.log(`EXPO_PUBLIC_COL_DAY_LOGS=day_logs`);
   console.log(`EXPO_PUBLIC_COL_ADS=ads`);
   console.log(`EXPO_PUBLIC_COL_SUBSCRIPTIONS=subscriptions`);
+  console.log(`EXPO_PUBLIC_COL_PAYMENT_ORDERS=payment_orders`);
   console.log(`EXPO_PUBLIC_APPWRITE_AD_BUCKET_ID=${results.bucketId}`);
   console.log("\n✅ Done! Your Appwrite backend is ready.\n");
 }

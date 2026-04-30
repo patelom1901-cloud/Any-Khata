@@ -1,0 +1,10 @@
+{
+  "name": "create-cashfree-order",
+  "version": "1.0.0",
+  "description": "Generates a Cashfree payment link server-side",
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "node-appwrite": "^24.0.0"
+  }
+}

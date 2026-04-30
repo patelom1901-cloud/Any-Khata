@@ -6,16 +6,22 @@ import { functions } from './appwrite';
 import { APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } from '../constants/appwrite';
 
 /**
- * Create Cashfree payment order
+ * Create Cashfree payment link via Cloud Function
  */
-export const createCashfreeOrder = async (
-  amount: number,
-  type: 'business' | 'ad',
-  referenceId: string
-): Promise<{ cashfreeOrderId: string; paymentSessionId: string }> => {
+export const createCashfreeOrder = async (params: {
+  amount: number;
+  orderId: string;
+  customerPhone: string;
+  customerName: string;
+  type: 'business' | 'ad';
+  referenceId?: string;
+  redirectUri: string;
+  userId: string;
+  adPayload?: any;
+}): Promise<{ link_url: string }> => {
   const result = await functions.createExecution(
     'create-cashfree-order',
-    JSON.stringify({ amount, type, referenceId }),
+    JSON.stringify(params),
     false,
   );
 
@@ -23,24 +29,31 @@ export const createCashfreeOrder = async (
     throw new Error('Failed to create payment order');
   }
 
-  return JSON.parse(result.responseBody);
+  const parsed = JSON.parse(result.responseBody);
+  if (!parsed.success) {
+    throw new Error(parsed.error || 'Failed to create payment link');
+  }
+
+  return { link_url: parsed.link_url };
 };
 
 /**
- * Verify Cashfree subscription payment
+ * Verify Cashfree payment status via Cloud Function
  */
-export const verifySubscription = async (
-  cashfreeOrderId: string,
-  type: 'business' | 'ad',
-  referenceId: string
-): Promise<boolean> => {
+export const verifyCashfreePayment = async (params: {
+  orderId: string;
+}): Promise<{ success: boolean; already_processed?: boolean; error?: string }> => {
   const result = await functions.createExecution(
-    'verify-subscription',
-    JSON.stringify({ cashfreeOrderId, type, referenceId }),
+    'verify-cashfree-payment',
+    JSON.stringify(params),
     false,
   );
 
-  return result.status === 'completed';
+  if (result.status !== 'completed') {
+    throw new Error('Payment verification function failed');
+  }
+
+  return JSON.parse(result.responseBody);
 };
 
 /**

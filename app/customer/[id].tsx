@@ -49,7 +49,7 @@ function getInitials(name: string): string {
 
 // ─── Screen ────────────────────────────────────────────────────────────────────
 export default function CustomerLedgerScreen() {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuthStore();
@@ -313,8 +313,8 @@ export default function CustomerLedgerScreen() {
             </View>
           ) : (
             dayLogs.map((group: any, gIdx: number) => (
-              <Animated.View 
-                key={group.dayLogId} 
+              <Animated.View
+                key={group.dayLogId}
                 entering={FadeInDown.delay(200 + gIdx * 100).duration(500)}
                 style={styles.dayGroup}
               >
@@ -341,8 +341,8 @@ export default function CustomerLedgerScreen() {
                           group.is_locked
                             ? { backgroundColor: ThemeColors.creamBorder }
                             : entry.type === 'gave'
-                            ? { backgroundColor: 'rgba(186,26,26,0.1)' }
-                            : { backgroundColor: 'rgba(0,108,73,0.1)' },
+                              ? { backgroundColor: 'rgba(186,26,26,0.1)' }
+                              : { backgroundColor: 'rgba(0,108,73,0.1)' },
                         ]}
                       >
                         <MaterialIcons
@@ -350,16 +350,16 @@ export default function CustomerLedgerScreen() {
                             group.is_locked
                               ? 'lock'
                               : entry.type === 'gave'
-                              ? 'call-made'
-                              : 'call-received'
+                                ? 'call-made'
+                                : 'call-received'
                           }
                           size={16}
                           color={
                             group.is_locked
                               ? ThemeColors.textMuted
                               : entry.type === 'gave'
-                              ? ThemeColors.creditRed
-                              : ThemeColors.paymentGreen
+                                ? ThemeColors.creditRed
+                                : ThemeColors.paymentGreen
                           }
                         />
                       </View>
@@ -383,8 +383,8 @@ export default function CustomerLedgerScreen() {
                           group.is_locked
                             ? { color: ThemeColors.textMuted }
                             : entry.type === 'gave'
-                            ? { color: ThemeColors.creditRed }
-                            : { color: ThemeColors.paymentGreen },
+                              ? { color: ThemeColors.creditRed }
+                              : { color: ThemeColors.paymentGreen },
                         ]}
                       >
                         ₹{Number(entry.amount).toLocaleString('en-IN')}
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     marginHorizontal: 20,
-    marginTop: -14,
+    marginTop: 15,
     borderRadius: 24,
     backgroundColor: ThemeColors.brandDark,
     overflow: 'hidden',
@@ -819,7 +819,7 @@ const styles = StyleSheet.create({
   },
   amountText: {
     fontSize: 16,
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.display,
   },
   dayTotalRow: {
     flexDirection: 'row',
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
   },
   dayTotalAmount: {
     fontSize: 13,
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.display,
   },
   fab: {
     position: 'absolute',

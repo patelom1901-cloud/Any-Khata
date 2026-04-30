@@ -26,6 +26,12 @@ export default function AddPaymentScreen() {
       Alert.alert(t(`Error`), t(`Enter a valid amount greater than 0`));
       return;
     }
+    console.log("RECORD_PAYMENT_DEBUG:", {
+      customerId: customerId,
+      businessId: business?.businessId,
+      user: user?.uid || user?.id,
+      amount: parsedAmount
+    });
     if (!business || !customerId || !user) {
       Alert.alert(t(`Error`), t(`Missing required data`));
       return;

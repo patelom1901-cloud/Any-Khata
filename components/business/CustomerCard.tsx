@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { formatPhoneDisplay } from '../../utils/whatsappUtils';
 import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
+import { Fonts, Colors as ThemeColors } from '../../constants/theme';
 import type { Customer } from '../../types';
 import { useTranslation } from "../../hooks/useTranslation";
 
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
   },
   dueAmount: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
+    fontFamily: Fonts.display,
     color: Colors.amountDue,
   },
   dueLabel: {
