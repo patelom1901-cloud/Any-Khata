@@ -117,7 +117,8 @@ export default function AddEntryScreen() {
       }
 
       const parsedQuantity = quantity.trim() ? parseFloat(quantity) : undefined;
-      const dayLog = await getOrCreateDayLog(businessId, customerId);
+      const userId = user.userId || (user as any).$id;
+      const dayLog = await getOrCreateDayLog(businessId, customerId, userId);
       await addEntryToDayLog(dayLog, description.trim(), parsedAmount, 'gave', parsedQuantity);
       await recalcAndUpdateCustomerBalance(customerId);
       Alert.alert(t(`Success`), t(`Entry added successfully`));

@@ -39,10 +39,12 @@ export default function AddPaymentScreen() {
 
     setLoading(true);
     try {
+      const userId = user.userId || (user as any).$id;
       await addGotEntryToDayLog(
         customerId,
         business.businessId,
         parsedAmount,
+        userId,
         note.trim() || undefined
       );
       await recalcAndUpdateCustomerBalance(customerId);

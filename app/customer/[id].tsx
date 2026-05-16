@@ -131,6 +131,7 @@ export default function CustomerLedgerScreen() {
     try {
       const dbType: 'got' | 'gave' = entryType === 'payment' ? 'got' : 'gave';
 
+      const ownerId = (customer as any).owner_id ?? '';
       await upsertTodayDayLog(
         customer.$id,
         (customer as any).business_id ?? '',
@@ -138,7 +139,8 @@ export default function CustomerLedgerScreen() {
           description: addEntryDesc.trim() || 'Entry',
           amount: parsedAmount,
           type: dbType,
-        }
+        },
+        ownerId
       );
 
       await recalcAndUpdateCustomerBalance(customer.$id);

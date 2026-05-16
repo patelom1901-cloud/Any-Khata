@@ -44,9 +44,10 @@ export const verifyCashfreePayment = async (params: {
   orderId: string;
 }): Promise<{ success: boolean; already_processed?: boolean; error?: string }> => {
   const result = await functions.createExecution(
-    'verify-cashfree-payment',
+    'create-cashfree-order',
     JSON.stringify(params),
     false,
+    '/verify'
   );
 
   if (result.status !== 'completed') {

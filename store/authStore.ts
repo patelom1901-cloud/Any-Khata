@@ -48,7 +48,6 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: false,
         hasBusiness: false,
         isSubscribed: false,
-        selectedLanguage: 'en',
       }),
 
       hasRole: (role) => {

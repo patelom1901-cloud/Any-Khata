@@ -3,12 +3,17 @@
  * Google OAuth, session management, user doc sync
  */
 import { account, databases } from './appwrite';
-import { OAuthProvider } from 'react-native-appwrite';
+import { OAuthProvider, Permission, Role } from 'react-native-appwrite';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DB_ID, COL_USERS } from '../constants/appwrite';
 import type { AppUser } from '../types';
+import { useAuthStore } from '../store/authStore';
+import { useBusinessStore } from '../store/businessStore';
+import { useEntryStore } from '../store/entryStore';
+import { useUIStore } from '../store/uiStore';
+import { router } from 'expo-router';
 
 const USER_STORAGE_KEY = 'anykhata_user_doc';
 
@@ -127,13 +132,22 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
   console.log('[getOrCreateUserDoc] No existing doc found. Creating NEW user doc for:', authUser.$id);
   let newDoc: any;
   try {
-    newDoc = await databases.createDocument(DB_ID, COL_USERS, authUser.$id, {
-      userId: authUser.$id,
-      name: authUser.name ?? authUser.email.split('@')[0],
-      email: authUser.email ?? '',
-      createdAt: new Date().toISOString(),
-      has_business: false,
-    });
+    newDoc = await databases.createDocument(
+      DB_ID,
+      COL_USERS,
+      authUser.$id,
+      {
+        userId: authUser.$id,
+        name: authUser.name ?? authUser.email.split('@')[0],
+        email: authUser.email ?? '',
+        createdAt: new Date().toISOString(),
+        has_business: false,
+      },
+      [
+        Permission.read(Role.user(authUser.$id)),
+        Permission.update(Role.user(authUser.$id))
+      ]
+    );
     console.log('[getOrCreateUserDoc] createDocument succeeded. newDoc.$id:', newDoc.$id);
   } catch (createErr: any) {
     console.log('=== CAUGHT ERROR (getOrCreateUserDoc createDocument) ===', JSON.stringify(createErr), 'message:', createErr?.message);
@@ -188,6 +202,35 @@ export const logout = async (): Promise<void> => {
   
   // ALWAYS clear local cache regardless of server deletion result
   await clearCachedUser();
+
+  // Clear ALL Zustand stores
+  useAuthStore.getState().logout();
+  useBusinessStore.getState().clearBusiness();
+  useEntryStore.getState().clearEditingEntry();
+  useUIStore.getState().clearUI();
+
+  // Clear specific AsyncStorage keys dynamically to catch any potential leaks
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const keysToRemove = keys.filter(key => 
+      (key.toLowerCase().includes('business') ||
+      key.toLowerCase().includes('owner') ||
+      key.toLowerCase().includes('user') ||
+      key.toLowerCase().includes('subscription') ||
+      key.toLowerCase().includes('customer')) &&
+      !key.toLowerCase().includes('language') &&
+      key !== 'auth-storage' &&
+      key !== '@anykhata_notifications'
+    );
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove);
+    }
+  } catch (error) {
+    console.log('Failed to clear AsyncStorage keys during logout', error);
+  }
+
+  // Navigate to login screen
+  router.replace('/(auth)/login');
 };
 
 /**

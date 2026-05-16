@@ -7,6 +7,7 @@ interface UIState {
   hideToast: () => void;
   error: string | null;
   setError: (error: string | null) => void;
+  clearUI: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -16,4 +17,5 @@ export const useUIStore = create<UIState>((set) => ({
   hideToast: () => set({ toastMessage: null, toastVisible: false }),
   error: null,
   setError: (error) => set({ error }),
+  clearUI: () => set({ toastMessage: null, toastVisible: false, error: null }),
 }));

@@ -4,7 +4,7 @@
  * Zero direct SDK calls in components.
  */
 import { databases, account } from './appwrite';
-import { Query, ID } from 'react-native-appwrite';
+import { Query, ID, Permission, Role } from 'react-native-appwrite';
 import { DB_ID, COL_USERS, COL_CUSTOMERS, COL_DAY_LOGS, COL_BUSINESSES, COL_ADS, COL_SUBSCRIPTIONS } from '../constants/appwrite';
 import { getTodayString } from '../utils/dateUtils';
 import { parseEntries, serializeEntries, calcDayTotal, createEntry } from '../utils/entryUtils';
@@ -63,17 +63,27 @@ export const createCustomer = async (data: {
   phone: string;
   link_code: string;
 }): Promise<any> => {
-  const doc = await databases.createDocument(DB_ID, COL_CUSTOMERS, ID.unique(), {
-    business_id: data.business_id,
-    owner_id: data.owner_id,
-    name: data.name,
-    phone: data.phone,
-    link_code: data.link_code,
-    linked_user_id: "",
-    is_linked: false,
-    balance: 0,
-    created_at: new Date().toISOString(),
-  });
+  const doc = await databases.createDocument(
+    DB_ID,
+    COL_CUSTOMERS,
+    ID.unique(),
+    {
+      business_id: data.business_id,
+      owner_id: data.owner_id,
+      name: data.name,
+      phone: data.phone,
+      link_code: data.link_code,
+      linked_user_id: "",
+      is_linked: false,
+      balance: 0,
+      created_at: new Date().toISOString(),
+    },
+    [
+      Permission.read(Role.any()),
+      Permission.update(Role.user(data.owner_id)),
+      Permission.delete(Role.user(data.owner_id))
+    ]
+  );
   return doc;
 };
 
@@ -202,7 +212,8 @@ export const getDayLogsForCustomer = async (
 
 export const getOrCreateDayLog = async (
   businessId: string,
-  customerId: string
+  customerId: string,
+  ownerId: string
 ): Promise<DayLog> => {
   const today = getTodayString();
 
@@ -239,14 +250,24 @@ export const getOrCreateDayLog = async (
     throw new Error('Customer not found');
   }
 
-  const newDoc = await databases.createDocument(DB_ID, COL_DAY_LOGS, ID.unique(), {
-    business_id: businessId,
-    customer_id: customerId,
-    date: today,
-    entries: serializeEntries([]),
-    day_total: 0,
-    is_locked: false,
-  });
+  const newDoc = await databases.createDocument(
+    DB_ID,
+    COL_DAY_LOGS,
+    ID.unique(),
+    {
+      business_id: businessId,
+      customer_id: customerId,
+      date: today,
+      entries: serializeEntries([]),
+      day_total: 0,
+      is_locked: false,
+    },
+    [
+      Permission.read(Role.user(ownerId)),
+      Permission.update(Role.user(ownerId)),
+      Permission.delete(Role.user(ownerId))
+    ]
+  );
 
   return {
     dayLogId: newDoc.$id,
@@ -408,7 +429,12 @@ export const createBusiness = async (data: {
       state: data.state,
       is_active: true,
       created_at: new Date().toISOString(),
-    }
+    },
+    [
+      Permission.read(Role.user(data.ownerId)),
+      Permission.update(Role.user(data.ownerId)),
+      Permission.delete(Role.user(data.ownerId))
+    ]
   );
   return doc as unknown as Business;
 };
@@ -570,7 +596,18 @@ export const createAd = async (data: {
   if (data.website_url) payload.website_url = data.website_url;
   if (data.maps_url) payload.maps_url = data.maps_url;
 
-  const doc = await databases.createDocument(DB_ID, COL_ADS, ID.unique(), payload);
+  const doc = await databases.createDocument(
+    DB_ID,
+    COL_ADS,
+    ID.unique(),
+    payload,
+    [
+      Permission.read(Role.user(currentUserId)),
+      Permission.update(Role.user(currentUserId)),
+      Permission.delete(Role.user(currentUserId)),
+      Permission.read(Role.any())
+    ]
+  );
   return {
     adId: doc.$id,
     user_id: (doc as any).user_id || '',
@@ -689,7 +726,8 @@ export const createBusinessSubscription = async (data: {
 export const upsertTodayDayLog = async (
   customerId: string,
   businessId: string,
-  entry: { description: string; amount: number; type: 'gave' | 'got'; note?: string }
+  entry: { description: string; amount: number; type: 'gave' | 'got'; note?: string },
+  ownerId: string
 ): Promise<void> => {
   const today = getTodayString();
   const d = new Date();
@@ -733,24 +771,25 @@ export const upsertTodayDayLog = async (
       day_total: newTotal,
     });
   } else {
-    // Get customer to extract owner_id and linked_user_id for permissions
-    const customer = await getCustomer(customerId);
-    if (!customer) {
-      throw new Error('Customer not found');
-    }
-
-    // day_total for brand-new log: amount only if type === 'gave'
-    const initialTotal = entry.type === 'gave' ? (Number(entry.amount) || 0) : 0;
-
     // Create a brand new day_log for today
-    await databases.createDocument(DB_ID, COL_DAY_LOGS, ID.unique(), {
-      customer_id: customerId,
-      business_id: businessId,
-      date: today,
-      entries: JSON.stringify([newEntry]),
-      day_total: isNaN(initialTotal) ? 0 : initialTotal,
-      is_locked: false,
-    });
+    await databases.createDocument(
+      DB_ID,
+      COL_DAY_LOGS,
+      ID.unique(),
+      {
+        customer_id: customerId,
+        business_id: businessId,
+        date: today,
+        entries: JSON.stringify([newEntry]),
+        day_total: isNaN(initialTotal) ? 0 : initialTotal,
+        is_locked: false,
+      },
+      [
+        Permission.read(Role.user(ownerId)),
+        Permission.update(Role.user(ownerId)),
+        Permission.delete(Role.user(ownerId))
+      ]
+    );
   }
 };
 
@@ -793,6 +832,7 @@ export const addGotEntryToDayLog = async (
   customerId: string,
   businessId: string,
   amount: number,
+  ownerId: string,
   note: string = ''
 ): Promise<void> => {
   await upsertTodayDayLog(customerId, businessId, {
@@ -800,7 +840,7 @@ export const addGotEntryToDayLog = async (
     amount,
     type: 'got',
     note,
-  });
+  }, ownerId);
 
   // Recalculate balance after adding got entry
   await recalcAndUpdateCustomerBalance(customerId);
