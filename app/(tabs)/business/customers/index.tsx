@@ -29,7 +29,7 @@ export default function CustomersScreen() {
     );
 
     if (activeFilter === 'pending') {
-      result = result.filter((c) => (c.totalDue - c.totalPaid) > 0);
+      result = result.filter((c) => (c.balance || 0) > 0);
     }
 
     return result;
@@ -118,7 +118,7 @@ export default function CustomersScreen() {
               />
             ) : (
               filteredCustomers.map((item, index) => {
-                const balance = (item.totalDue || 0) - (item.totalPaid || 0);
+                const balance = item.balance || 0;
                 const initials = item.name ? item.name.split(' ').map((n: string) => n.charAt(0)).join('').toUpperCase().substring(0, 2) : '??';
                 
                 return (

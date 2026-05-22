@@ -3,7 +3,7 @@
  * Google OAuth, session management, user doc sync
  */
 import { account, databases } from './appwrite';
-import { OAuthProvider, Permission, Role } from 'react-native-appwrite';
+import { OAuthProvider, Permission, Role, Query } from 'react-native-appwrite';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -103,11 +103,13 @@ export const getAuthUser = async () => {
  * Called after successful Google login
  */
 export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
-  console.log('[getOrCreateUserDoc] Called with authUser.$id:', authUser?.$id, 'email:', authUser?.email);
+  if (__DEV__) {
+    console.log('[getOrCreateUserDoc] Called with authUser.$id:', authUser?.$id, 'email:', authUser?.email);
+  }
   // Check if user doc exists
   const existing = await databases.listDocuments(DB_ID, COL_USERS, [
-    (await import('react-native-appwrite')).Query.equal('userId', authUser.$id),
-    (await import('react-native-appwrite')).Query.limit(1),
+    Query.equal('userId', authUser.$id),
+    Query.limit(1),
   ]);
   console.log('[getOrCreateUserDoc] Query result: total =', existing.total, ', docs count =', existing.documents.length);
 
@@ -123,13 +125,23 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
       hasBusiness: !!doc.has_business,
       isSubscribed: !!doc.is_subscribed,
     };
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userDoc));
-    console.log('[getOrCreateUserDoc] Returning EXISTING userDoc:', JSON.stringify(userDoc));
+    const cacheableUser = {
+      $id: userDoc.$id,
+      userId: userDoc.userId,
+      name: userDoc.name,
+      email: userDoc.email,
+    };
+    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cacheableUser));
+    if (__DEV__) {
+      console.log('[getOrCreateUserDoc] Returning EXISTING userDoc:', JSON.stringify(userDoc));
+    }
     return userDoc;
   }
 
   // Create new user doc — only write fields that exist in the Appwrite schema
-  console.log('[getOrCreateUserDoc] No existing doc found. Creating NEW user doc for:', authUser.$id);
+  if (__DEV__) {
+    console.log('[getOrCreateUserDoc] No existing doc found. Creating NEW user doc for:', authUser.$id);
+  }
   let newDoc: any;
   try {
     newDoc = await databases.createDocument(
@@ -148,9 +160,13 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
         Permission.update(Role.user(authUser.$id))
       ]
     );
-    console.log('[getOrCreateUserDoc] createDocument succeeded. newDoc.$id:', newDoc.$id);
+    if (__DEV__) {
+      console.log('[getOrCreateUserDoc] createDocument succeeded. newDoc.$id:', newDoc.$id);
+    }
   } catch (createErr: any) {
-    console.log('=== CAUGHT ERROR (getOrCreateUserDoc createDocument) ===', JSON.stringify(createErr), 'message:', createErr?.message);
+    if (__DEV__) {
+      console.log('=== CAUGHT ERROR (getOrCreateUserDoc createDocument) ===', JSON.stringify(createErr), 'message:', createErr?.message);
+    }
     throw createErr;
   }
 
@@ -163,8 +179,16 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
     hasBusiness: !!(newDoc as any).has_business,
     isSubscribed: !!(newDoc as any).is_subscribed,
   };
-  await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userDoc));
-  console.log('[getOrCreateUserDoc] Returning NEW userDoc:', JSON.stringify(userDoc));
+  const cacheableUser = {
+    $id: userDoc.$id,
+    userId: userDoc.userId,
+    name: userDoc.name,
+    email: userDoc.email,
+  };
+  await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cacheableUser));
+  if (__DEV__) {
+    console.log('[getOrCreateUserDoc] Returning NEW userDoc:', JSON.stringify(userDoc));
+  }
   return userDoc;
 };
 
@@ -258,7 +282,9 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
     // Check if there's an active Appwrite session
     console.log('[hydrateSession] Calling account.get()...');
     const authUser = await account.get();
-    console.log('[hydrateSession] account.get() result:', JSON.stringify(authUser));
+    if (__DEV__) {
+      console.log('[hydrateSession] account.get() result:', JSON.stringify(authUser));
+    }
     if (!authUser) {
       // No session — clear any stale cached data
       console.log('[hydrateSession] No authUser returned. Clearing cache.');
@@ -267,8 +293,9 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
     }
 
     // Fetch the user document from the database
-    const { Query } = await import('react-native-appwrite');
-    console.log('[hydrateSession] Fetching user doc for userId:', authUser.$id);
+    if (__DEV__) {
+      console.log('[hydrateSession] Fetching user doc for userId:', authUser.$id);
+    }
     const existing = await databases.listDocuments(DB_ID, COL_USERS, [
       Query.equal('userId', authUser.$id),
       Query.limit(1),
@@ -292,13 +319,23 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
       isSubscribed: !!doc.is_subscribed,
     };
     
-    // Cache the user doc
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userDoc));
-    console.log('[hydrateSession] Returning existing userDoc:', JSON.stringify(userDoc));
+    // Cache the user doc (only non-sensitive fields)
+    const cacheableUser = {
+      $id: userDoc.$id,
+      userId: userDoc.userId,
+      name: userDoc.name,
+      email: userDoc.email,
+    };
+    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cacheableUser));
+    if (__DEV__) {
+      console.log('[hydrateSession] Returning existing userDoc:', JSON.stringify(userDoc));
+    }
     return userDoc;
   } catch (error) {
     // CRITICAL: Clear any stale cached data when session validation fails
-    console.log('=== CAUGHT ERROR (hydrateSession) ===', JSON.stringify(error));
+    if (__DEV__) {
+      console.log('=== CAUGHT ERROR (hydrateSession) ===', JSON.stringify(error));
+    }
     await clearCachedUser();
     return null;
   }

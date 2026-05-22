@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Alert, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { verifyAndActivateSubscription } from '../lib/database';
+import { verifyAndActivateSubscription, checkBusinessSubscriptionStatus } from '../lib/database';
 import { Colors } from '../constants/colors';
 import { useTranslation } from "../hooks/useTranslation";
 import { useAuthStore } from '../store/authStore';
@@ -31,10 +31,18 @@ export default function PaymentCallbackScreen() {
         // If missing, still consider payment done — user will see updated status on next app open
         if (finalReferenceId) {
           await verifyAndActivateSubscription(finalType, finalReferenceId);
+        }
+
+        // Always fetch fresh subscription status from Appwrite after a payment attempt
+        const userId = useAuthStore.getState().user?.userId;
+        if (userId) {
+          const isSub = await checkBusinessSubscriptionStatus(userId);
+          useAuthStore.getState().setIsSubscribed(isSub);
         } else {
-          // No referenceId — subscription doc update will be handled by webhook/cron
-          // Just update local store so UI reflects active state immediately
-          useAuthStore.getState().setIsSubscribed(true);
+          console.error('Payment callback: userId missing, cannot verify payment');
+          Alert.alert('Error', 'Session expired. Please log in again and check your subscription status.');
+          router.replace('/(auth)/login');
+          return;
         }
 
         Alert.alert(

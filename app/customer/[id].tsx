@@ -27,7 +27,6 @@ import {
   getBusiness,
   getDayLogsForCustomer,
   upsertTodayDayLog,
-  recalcAndUpdateCustomerBalance,
   deleteCustomer,
 } from '../../lib/database';
 import { formatRelativeDate } from '../../utils/dateUtils';
@@ -142,8 +141,6 @@ export default function CustomerLedgerScreen() {
         },
         ownerId
       );
-
-      await recalcAndUpdateCustomerBalance(customer.$id);
 
       const refreshed = await getCustomer(customer.$id);
       if (refreshed) setCustomer(refreshed);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getDayLogsForCustomer, getCustomer } from '../../../../lib/database';
@@ -16,7 +16,7 @@ import { useTranslation } from "../../../../hooks/useTranslation";
  * READ ONLY — customer can view but not edit
  */
 export default function CustomerLedgerScreen() {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
   // TODO: Get current customer's customerId from auth store
   const customerId = '';
@@ -24,6 +24,9 @@ export default function CustomerLedgerScreen() {
   const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastCursor, setLastCursor] = useState<string | null>(null);
+  const [hasMoreLogs, setHasMoreLogs] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!businessId || !customerId) return;
@@ -36,6 +39,13 @@ export default function CustomerLedgerScreen() {
         ]);
         setDayLogs(logs);
         setCustomer(cust);
+        if (logs.length > 0) {
+          setLastCursor(logs[logs.length - 1].dayLogId);
+          setHasMoreLogs(logs.length === 20);
+        } else {
+          setLastCursor(null);
+          setHasMoreLogs(false);
+        }
       } catch {
         // Handle error
       } finally {
@@ -46,10 +56,27 @@ export default function CustomerLedgerScreen() {
     fetchData();
   }, [businessId, customerId]);
 
+  const loadMoreLogs = async () => {
+    if (!businessId || !customerId || !hasMoreLogs || !lastCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const moreLogs = await getDayLogsForCustomer(businessId, customerId, lastCursor);
+      if (moreLogs.length > 0) {
+        setLastCursor(moreLogs[moreLogs.length - 1].dayLogId);
+        setHasMoreLogs(moreLogs.length === 20);
+        setDayLogs(prev => [...prev, ...moreLogs]);
+      } else {
+        setHasMoreLogs(false);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
-  
-  
   let totalBilled = 0;
   let totalPaid = 0;
   dayLogs.forEach(log => {
@@ -81,6 +108,26 @@ export default function CustomerLedgerScreen() {
           dayLogs.map((log) => (
             <DayLogCard key={log.dayLogId} dayLog={log} onAddEntry={() => {}} />
           ))
+        )}
+        {hasMoreLogs && (
+          <TouchableOpacity
+            onPress={loadMoreLogs}
+            disabled={loadingMore}
+            style={{
+              backgroundColor: Colors.primary,
+              padding: 12,
+              borderRadius: 12,
+              alignItems: 'center',
+              marginTop: 8,
+              marginBottom: 20
+            }}
+          >
+            {loadingMore ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={{ fontWeight: 'bold', color: '#FFFFFF' }}>{t('Load More')}</Text>
+            )}
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>

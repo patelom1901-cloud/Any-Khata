@@ -63,6 +63,21 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        // Only persist non-sensitive state
+        selectedLanguage: state.selectedLanguage,
+        user: state.user ? {
+          $id: state.user.$id,
+          userId: state.user.userId,
+          name: state.user.name,
+          email: state.user.email,
+          // strictly only userId, name, email, language preference
+        } as AppUser : null,
+        // isAuthenticated is derived from user, but we can persist it or let it hydrate
+        // actually, let's persist what we need
+        isAuthenticated: state.isAuthenticated,
+        // We do NOT persist hasBusiness, isSubscribed
+      }),
     }
   )
 );

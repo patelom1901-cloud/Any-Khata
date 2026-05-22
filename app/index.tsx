@@ -24,21 +24,29 @@ export default function Index() {
         // Check if an active session exists
         console.log('[index.tsx] Calling hydrateSession()...');
         const userDoc = await hydrateSession();
-        console.log('[index.tsx] hydrateSession() result:', JSON.stringify(userDoc));
+        if (__DEV__) {
+          console.log('[index.tsx] hydrateSession() result:', JSON.stringify(userDoc));
+        }
         
         if (userDoc) {
           // Hydrate auth store with user data
           setUser(userDoc);
           
           // Check if user has a business
-          console.log('[index.tsx] Fetching business for userId:', userDoc.userId);
+          if (__DEV__) {
+            console.log('[index.tsx] Fetching business for userId:', userDoc.userId);
+          }
           const business = await getBusinessByOwner(userDoc.userId);
-          console.log('[index.tsx] business result:', JSON.stringify(business));
+          if (__DEV__) {
+            console.log('[index.tsx] business result:', JSON.stringify(business));
+          }
           setHasBusiness(!!business);
           
           // Check subscription status
           const isSubscribed = await checkBusinessSubscriptionStatus(userDoc.userId);
-          console.log('[index.tsx] isSubscribed:', isSubscribed);
+          if (__DEV__) {
+            console.log('[index.tsx] isSubscribed:', isSubscribed);
+          }
           setIsSubscribed(isSubscribed);
           setNextRoute('/(tabs)/home');
         } else {
@@ -51,7 +59,9 @@ export default function Index() {
         }
       } catch (error) {
         // On error, clear all auth state and set next route to login
-        console.log('=== CAUGHT ERROR (performSessionHydration) ===', JSON.stringify(error));
+        if (__DEV__) {
+          console.log('=== CAUGHT ERROR (performSessionHydration) ===', JSON.stringify(error));
+        }
         setUser(null);
         setHasBusiness(false);
         setIsSubscribed(false);

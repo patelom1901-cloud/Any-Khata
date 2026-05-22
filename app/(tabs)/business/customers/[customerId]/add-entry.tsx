@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, StatusBar, SafeAreaView, ActivityIndicator } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Input } from '../../../../../components/ui/Input';
-import { getOrCreateDayLog, addEntryToDayLog, getBusinessByOwner, getDayLogsForCustomer, updateDayLogEntry, recalcAndUpdateCustomerBalance } from '../../../../../lib/database';
+import { getOrCreateDayLog, addEntryToDayLog, getBusinessByOwner, getDayLogsForCustomer, updateDayLogEntry } from '../../../../../lib/database';
 import { useBusinessStore } from '../../../../../store/businessStore';
 import { useAuthStore } from '../../../../../store/authStore';
 import { useEntryStore } from '../../../../../store/entryStore';
@@ -92,7 +92,6 @@ export default function AddEntryScreen() {
           quantity: parsedQuantity,
           type: editingEntry.type
         });
-        await recalcAndUpdateCustomerBalance(customerId);
         Alert.alert(t(`Success`), t(`Entry updated successfully`));
         router.back();
         return;
@@ -120,7 +119,6 @@ export default function AddEntryScreen() {
       const userId = user.userId || (user as any).$id;
       const dayLog = await getOrCreateDayLog(businessId, customerId, userId);
       await addEntryToDayLog(dayLog, description.trim(), parsedAmount, 'gave', parsedQuantity);
-      await recalcAndUpdateCustomerBalance(customerId);
       Alert.alert(t(`Success`), t(`Entry added successfully`));
       router.back();
     } catch (err: any) {

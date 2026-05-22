@@ -6,10 +6,10 @@ import { Client, Databases, Query } from 'node-appwrite';
  * CRON: 31 18 * * *  →  00:01 IST (UTC+5:30) every day
  *
  * Finds businesses and ads where:
- *   - subscription_status == 'active'
+ *   - subscriptionStatus == 'active'
  *   - subscription_expiry < now
  *
- * Sets subscription_status = 'expired'.
+ * Sets subscriptionStatus = 'expired'.
  * Uses paginated offset loop (limit 100).
  */
 
@@ -37,7 +37,7 @@ export default async ({ req, res, log, error }) => {
                 process.env.DB_ID,
                 process.env.COL_BUSINESSES,
                 [
-                    Query.equal('subscription_status', 'active'),
+                    Query.equal('subscriptionStatus', 'active'),
                     Query.lessThan('subscription_expiry', now),
                     Query.limit(BATCH_LIMIT),
                     Query.offset(0),
@@ -53,7 +53,7 @@ export default async ({ req, res, log, error }) => {
                     process.env.DB_ID,
                     process.env.COL_BUSINESSES,
                     doc.$id,
-                    { subscription_status: 'expired' }
+                    { subscriptionStatus: 'expired' }
                 );
                 totalExpiredBusinesses++;
             }
@@ -67,7 +67,7 @@ export default async ({ req, res, log, error }) => {
                 process.env.DB_ID,
                 process.env.COL_ADS,
                 [
-                    Query.equal('subscription_status', 'active'),
+                    Query.equal('subscriptionStatus', 'active'),
                     Query.lessThan('subscription_expiry', now),
                     Query.limit(BATCH_LIMIT),
                     Query.offset(0),
@@ -83,7 +83,7 @@ export default async ({ req, res, log, error }) => {
                     process.env.DB_ID,
                     process.env.COL_ADS,
                     doc.$id,
-                    { subscription_status: 'expired' }
+                    { subscriptionStatus: 'expired' }
                 );
                 totalExpiredAds++;
             }

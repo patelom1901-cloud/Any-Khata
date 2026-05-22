@@ -2,7 +2,8 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { 
   View, 
   Text, 
-  ScrollView, 
+  FlatList,
+  RefreshControl,
   TouchableOpacity, 
   Image, 
   StyleSheet, 
@@ -70,6 +71,9 @@ const HomeScreen = () => {
   const [activeFilter, setActiveFilter] = useState('all');
   const searchInputRef = useRef<TextInput>(null);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [lastCursor, setLastCursor] = useState<string | null>(null);
+  const [hasMoreCustomers, setHasMoreCustomers] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
@@ -83,6 +87,15 @@ const HomeScreen = () => {
   const [dustbinLayout, setDustbinLayout] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   const [shatteringCard, setShatteringCard] = useState<{ layout: { x: number, y: number, width: number, height: number }, color: string } | null>(null);
   const lastActiveLayout = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
+
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchHomeData();
+    setRefreshing(false);
+  };
 
   // Localized schema for form validation
   const localizedCustomerSchema = useMemo(() => z.object({
@@ -105,8 +118,9 @@ const HomeScreen = () => {
         // Owner Data
         const business = await getBusinessByOwner(userId);
         if (business) {
-          const businessId = (business as any).$id || business.businessId;
-          const customersList = await getCustomersByBusiness(businessId);
+          const currentBusinessId = (business as any).$id || business.businessId;
+          setBusinessId(currentBusinessId);
+          const customersList = await getCustomersByBusiness(currentBusinessId);
           
           const totalBalance = customersList.reduce((sum, c) => sum + (c.balance || 0), 0);
           setSummary({ count: customersList.length, total: totalBalance });
@@ -133,9 +147,19 @@ const HomeScreen = () => {
             };
           });
           setCustomers(mappedCustomers);
+          if (customersList.length > 0) {
+            setLastCursor(customersList[customersList.length - 1].customerId);
+            setHasMoreCustomers(customersList.length === 20);
+          } else {
+            setLastCursor(null);
+            setHasMoreCustomers(false);
+          }
         } else {
+          setBusinessId(null);
           setSummary({ count: 0, total: 0 });
           setCustomers([]);
+          setLastCursor(null);
+          setHasMoreCustomers(false);
         }
       } else {
         // Customer Data (Linked Khatas)
@@ -143,6 +167,7 @@ const HomeScreen = () => {
         const totalBalance = linkedKhatas.reduce((sum, k) => sum + (k.balance || 0), 0);
         setSummary({ count: linkedKhatas.length, total: totalBalance });
         setCustomers([]);
+        setBusinessId(null);
       }
     } catch (err: any) {
       Alert.alert(t('common.something_went_wrong'), t('common.please_try_again'));
@@ -151,6 +176,48 @@ const HomeScreen = () => {
       setLoading(false);
     }
   }, [user, hasBusiness, t]);
+
+  const loadMoreCustomers = async () => {
+    if (!user || !hasMoreCustomers || !lastCursor || loadingMore || !businessId) return;
+    setLoadingMore(true);
+    try {
+      const moreCustomers = await getCustomersByBusiness(businessId, lastCursor);
+      
+      if (moreCustomers.length > 0) {
+        setLastCursor(moreCustomers[moreCustomers.length - 1].customerId);
+        setHasMoreCustomers(moreCustomers.length === 20);
+        
+        const mappedCustomers = moreCustomers.map((c: any, index: number) => {
+          const colors = [
+            { bg: Colors.primaryPale, text: Colors.primary },
+            { bg: Colors.successLight, text: Colors.success },
+            { bg: Colors.warningLight, text: Colors.warning },
+          ];
+          const style = colors[(customers.length + index) % colors.length];
+          
+          return {
+            id: c.$id || c.customerId || (customers.length + index).toString(),
+            initials: c.name ? c.name.split(' ').map((n: string) => n.charAt(0)).join('').toUpperCase().substring(0, 2) : '??',
+            name: c.name || 'Unknown',
+            phone: c.phone || '',
+            balance: c.balance || c.totalDue || 0,
+            lastActivity: 'Active', 
+            avatarBg: style.bg,
+            avatarText: style.text,
+            isLinked: c.isLinked,
+            linkCode: c.linkCode,
+          };
+        });
+        setCustomers(prev => [...prev, ...mappedCustomers]);
+      } else {
+        setHasMoreCustomers(false);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     fetchHomeData();
@@ -300,11 +367,22 @@ const HomeScreen = () => {
         </View>
       )}
 
-      <ScrollView 
+      <FlatList 
+        data={hasBusiness ? filteredCustomers : []}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-      >
+        initialNumToRender={10}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        onEndReached={loadMoreCustomers}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+        }
+        ListHeaderComponent={
+          <>
         {/* 1. WAVY HEADER */}
         <WavyHeader>
           <View style={styles.headerInner}>
@@ -439,97 +517,123 @@ const HomeScreen = () => {
               })}
             </ScrollView>
             
-            <View style={{ paddingHorizontal: 14 }}>
-              {filteredCustomers.length === 0 ? (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <MaterialIcons name="people-outline" size={48} color={ThemeColors.textSecondary} opacity={0.3} />
-                  <Text style={{ fontFamily: Fonts.semibold, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 12 }}>{t('No customers found')}</Text>
-                </View>
-              ) : (
-                filteredCustomers.map((customer, index) => {
-                  const avatarStyles = [
-                    { bg: '#FDE8D0', fc: '#7D3E10' },
-                    { bg: '#E8F2FD', fc: '#1A4E7A' },
-                    { bg: '#E8FBF0', fc: '#1A6E3A' },
-                    { bg: '#F5E8FC', fc: '#6E2888' },
-                    { bg: '#FDF7E3', fc: '#8A7210' },
-                  ];
-                  const avatarColor = avatarStyles[index % 5];
-
-                  return (
-                    <Animated.View 
-                      key={customer.id} 
-                      entering={FadeInRight.delay(300 + index * 40).springify()}
-                      layout={Layout.springify()}
-                    >
-                      <DraggableDeletionWrapper
-                        dustbinLayout={dustbinLayout}
-                        onActivate={(layout) => {
-                          setIsDeletingMode(true);
-                          lastActiveLayout.current = layout;
-                          setDustbinLayout({
-                            x: width - 80,
-                            y: layout.y,
-                            width: 60,
-                            height: 60
-                          });
-                        }}
-                        onDeactivate={() => setIsDeletingMode(false)}
-                        onDelete={() => handleConfirmDelete(customer.id)}
-                      >
-                        <TouchableOpacity
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            backgroundColor: '#FFFFFF',
-                            padding: 12,
-                            borderRadius: 16,
-                            marginBottom: 8,
-                            borderWidth: 1,
-                            borderColor: '#EEE1D4',
-                          }}
-                          onPress={() => router.push(`/(tabs)/business/customers/${customer.id}` as any)}
-                          activeOpacity={0.7}
-                        >
-                          <View style={{ 
-                            width: 42, 
-                            height: 42, 
-                            borderRadius: 21, 
-                            backgroundColor: avatarColor.bg, 
-                            alignItems: 'center', 
-                            justifyContent: 'center' 
-                          }}>
-                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: avatarColor.fc }}>
-                              {customer.initials}
-                            </Text>
-                          </View>
-                          
-                          <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: ThemeColors.textPrimary }}>
-                              {customer.name}
-                            </Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: ThemeColors.textSecondary, marginRight: 8 }}>
-                                Code: {customer.linkCode || '------'}
-                              </Text>
-                              <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: ThemeColors.textSecondary }}>
-                                {customer.lastActivity}
-                              </Text>
-                            </View>
-                          </View>
-
-                          <Text style={{ fontFamily: Fonts.display, fontSize: 16, color: ThemeColors.creditRed }}>
-                            ₹ {customer.balance.toLocaleString('en-IN')}
-                          </Text>
-                        </TouchableOpacity>
-                      </DraggableDeletionWrapper>
-                    </Animated.View>
-                  );
-                })
-              )}
+            </>
+          )}
+        </>
+        }
+        ListEmptyComponent={
+          hasBusiness ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <MaterialIcons name="people-outline" size={48} color={ThemeColors.textSecondary} opacity={0.3} />
+              <Text style={{ fontFamily: Fonts.semibold, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 12 }}>{t('No customers found')}</Text>
             </View>
-          </>
-        )}
+          ) : null
+        }
+        renderItem={({ item: customer, index }) => {
+          const avatarStyles = [
+            { bg: '#FDE8D0', fc: '#7D3E10' },
+            { bg: '#E8F2FD', fc: '#1A4E7A' },
+            { bg: '#E8FBF0', fc: '#1A6E3A' },
+            { bg: '#F5E8FC', fc: '#6E2888' },
+            { bg: '#FDF7E3', fc: '#8A7210' },
+          ];
+          const avatarColor = avatarStyles[index % 5];
+
+          return (
+            <View style={{ paddingHorizontal: 14 }}>
+              <Animated.View 
+                entering={FadeInRight.delay(300 + index * 40).springify()}
+                layout={Layout.springify()}
+              >
+                <DraggableDeletionWrapper
+                  dustbinLayout={dustbinLayout}
+                  onActivate={(layout) => {
+                    setIsDeletingMode(true);
+                    lastActiveLayout.current = layout;
+                    setDustbinLayout({
+                      x: width - 80,
+                      y: layout.y,
+                      width: 60,
+                      height: 60
+                    });
+                  }}
+                  onDeactivate={() => setIsDeletingMode(false)}
+                  onDelete={() => handleConfirmDelete(customer.id)}
+                >
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#FFFFFF',
+                      padding: 12,
+                      borderRadius: 16,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: '#EEE1D4',
+                    }}
+                    onPress={() => router.push(`/(tabs)/business/customers/${customer.id}` as any)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ 
+                      width: 42, 
+                      height: 42, 
+                      borderRadius: 21, 
+                      backgroundColor: avatarColor.bg, 
+                      alignItems: 'center', 
+                      justifyContent: 'center' 
+                    }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: avatarColor.fc }}>
+                        {customer.initials}
+                      </Text>
+                    </View>
+                    
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: ThemeColors.textPrimary }}>
+                        {customer.name}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: ThemeColors.textSecondary, marginRight: 8 }}>
+                          Code: {customer.linkCode || '------'}
+                        </Text>
+                        <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: ThemeColors.textSecondary }}>
+                          {customer.lastActivity}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={{ fontFamily: Fonts.display, fontSize: 16, color: ThemeColors.creditRed }}>
+                      ₹ {customer.balance.toLocaleString('en-IN')}
+                    </Text>
+                  </TouchableOpacity>
+                </DraggableDeletionWrapper>
+              </Animated.View>
+            </View>
+          );
+        }}
+        ListFooterComponent={
+          <>
+            {hasBusiness && hasMoreCustomers && (
+              <View style={{ paddingHorizontal: 14 }}>
+                <TouchableOpacity 
+                  onPress={loadMoreCustomers} 
+                  disabled={loadingMore}
+                  style={{
+                    backgroundColor: ThemeColors.brandLight,
+                    padding: 12,
+                    borderRadius: 12,
+                    alignItems: 'center',
+                    marginTop: 8,
+                    marginBottom: 20
+                  }}
+                >
+                  {loadingMore ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={{ fontFamily: Fonts.bold, color: '#FFFFFF' }}>{t('Load More')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
         {/* NON-OWNER VIEW */}
         {!hasBusiness && (
@@ -548,7 +652,9 @@ const HomeScreen = () => {
             </View>
           </View>
         )}
-      </ScrollView>
+          </>
+        }
+      />
 
       {/* FAB */}
       {hasBusiness && (
@@ -1198,8 +1304,11 @@ const CountUpAmount = ({ value, style }: { value: number, style?: any }) => {
     
     const duration = 800;
     const startTime = Date.now();
+    let frameId: number;
+    let cancelled = false;
     
     const animate = () => {
+      if (cancelled) return;
       const now = Date.now();
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
@@ -1211,11 +1320,15 @@ const CountUpAmount = ({ value, style }: { value: number, style?: any }) => {
       setDisplayValue(current);
       
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        frameId = requestAnimationFrame(animate);
       }
     };
     
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameId);
+    };
   }, [value]);
 
   return (

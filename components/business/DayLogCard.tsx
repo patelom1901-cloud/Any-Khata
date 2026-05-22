@@ -32,12 +32,9 @@ export const DayLogCard = ({
   onDeactivateDeletion,
 }: DayLogCardProps) => {
   const { t } = useTranslation();
-  const isToday = (dateString: string) => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    return dateString === today;
-  }
-
-  const editable = isToday(dayLog.date);
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const isToday = dayLog.date === today;
+  const editable = isToday;
 
 
   // Filter out deleted entries

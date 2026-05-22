@@ -84,7 +84,7 @@ export interface Ad {
   phone: string;
   image_file_id: string;
   image_url: string;
-  subscription_status: 'active' | 'expired';
+  subscriptionStatus: 'active' | 'expired';
   subscription_expiry: string;
   created_at: string;
   gstin?: string;

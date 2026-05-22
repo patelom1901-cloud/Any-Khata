@@ -281,7 +281,7 @@ export default function ProfileScreen() {
           {loadingSub ? null : (
             <>
               {activeAds.map((ad, index) => {
-                const isAdActive = ad.subscription_status === 'active';
+                const isAdActive = ad.subscriptionStatus === 'active';
                 const daysLeft = getDaysRemaining(ad.subscription_expiry);
                 const isLast = index === activeAds.length - 1;
                 

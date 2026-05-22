@@ -23,9 +23,9 @@ export const createEntry = (description: string, amount: number, type: 'gave' | 
 /** Calculate total from entries array */
 export const calcDayTotal = (entries: DayEntry[]): number => {
   const total = entries
-    .filter(e => !e.is_deleted)
-    .reduce((sum, e) => sum + e.amount, 0);
-  return Math.round(total * 100) / 100;
+    .filter(e => !e.is_deleted && (e.type === 'gave' || e.type === 'debit'))
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  return total;
 };
 
 /** Parse entries from DB (stored as JSON string) */

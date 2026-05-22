@@ -3,7 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
+  RefreshControl,
   Alert,
   Modal,
   Dimensions,
@@ -17,7 +18,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, recalcAndUpdateCustomerBalance, softDeleteDayLogEntry, softDeleteDayLog } from '@/lib/database';
+import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, softDeleteDayLogEntry, softDeleteDayLog } from '@/lib/database';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useEntryStore } from '@/store/entryStore';
@@ -39,7 +40,17 @@ export default function CustomerDetailScreen() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
+  const [lastCursor, setLastCursor] = useState<string | null>(null);
+  const [hasMoreLogs, setHasMoreLogs] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   // Deletion State
   const [isDeletingMode, setIsDeletingMode] = useState(false);
@@ -56,12 +67,38 @@ export default function CustomerDetailScreen() {
       ]);
       setCustomer(cust);
       setDayLogs(logs);
+      if (logs.length > 0) {
+        setLastCursor(logs[logs.length - 1].dayLogId);
+        setHasMoreLogs(logs.length === 20);
+      } else {
+        setLastCursor(null);
+        setHasMoreLogs(false);
+      }
     } catch (err: any) {
       Alert.alert(t(`Error`), err.message || t(`Failed to load customer`));
     } finally {
       setLoading(false);
     }
   }, [customerId, t]);
+
+  const loadMoreLogs = async () => {
+    if (!customerId || !hasMoreLogs || !lastCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const moreLogs = await getDayLogsForCustomer(undefined, customerId, lastCursor);
+      if (moreLogs.length > 0) {
+        setLastCursor(moreLogs[moreLogs.length - 1].dayLogId);
+        setHasMoreLogs(moreLogs.length === 20);
+        setDayLogs(prev => [...prev, ...moreLogs]);
+      } else {
+        setHasMoreLogs(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -85,7 +122,6 @@ export default function CustomerDetailScreen() {
 
     try {
       await softDeleteDayLogEntry(dayLogId, entry.id);
-      await recalcAndUpdateCustomerBalance(customerId);
       await fetchData();
     } catch (err: any) {
       Alert.alert(t('Error'), err.message || t('Failed to delete entry'));
@@ -95,27 +131,10 @@ export default function CustomerDetailScreen() {
   if (loading) return <LoadingSpinner />;
   if (!customer) return <EmptyState message="Customer not found" icon="👤" />;
 
-  let totalGave = 0;
-  let totalGot = 0;
-  dayLogs.forEach((log) => {
-    (log.entries || []).forEach((entry: any) => {
-      if (entry.is_deleted) return;
-      const amt = Number(entry.amount) || 0;
-      if (entry.type === 'gave' || entry.type === 'debit') {
-        totalGave += amt;
-      } else if (entry.type === 'got' || entry.type === 'credit') {
-        totalGot += amt;
-      }
-    });
-  });
-
-  const totalDue = totalGave - totalGot;
+  const totalDue = (customer as any).balance || 0;
   const balanceColor = totalDue > 0 ? ThemeColors.creditRed : ThemeColors.paymentGreen;
 
-  const isToday = (dateString: string) => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    return dateString === today;
-  }
+  const isToday = (dateString: string) => dateString === getTodayString();
 
   const todayString = getTodayString();
   const todayLog = dayLogs.find(l => l.date === todayString);
@@ -182,11 +201,22 @@ export default function CustomerDetailScreen() {
         </View>
       </Animated.View>
 
-      <ScrollView
+      <FlatList
+        data={dayLogs}
+        keyExtractor={(item) => item.dayLogId}
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-      >
+        initialNumToRender={10}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        onEndReached={loadMoreLogs}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[ThemeColors.brandDark]} />
+        }
+        ListHeaderComponent={
+          <>
         <View style={styles.actionGrid}>
           <TouchableOpacity
             style={[styles.actionCard, { backgroundColor: ThemeColors.creditRed }]}
@@ -204,14 +234,15 @@ export default function CustomerDetailScreen() {
             <Text style={styles.actionText}>{t('GOT')}</Text>
           </TouchableOpacity>
         </View>
-
-        {dayLogs.length === 0 ? (
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialIcons name="receipt-long" size={56} color={ThemeColors.creamBorder} />
             <Text style={styles.emptyText}>{t('No entries for this customer')}</Text>
           </View>
-        ) : (
-          dayLogs.map((log, logIdx) => {
+        }
+        renderItem={({ item: log, index: logIdx }) => {
             const isLocked = log.isLocked;
             const logDate = new Date(log.date);
             const formattedDate = logDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -306,9 +337,32 @@ export default function CustomerDetailScreen() {
                 </View>
               </Animated.View>
             );
-          })
+        }}
+        ListFooterComponent={
+          <>
+        {hasMoreLogs && (
+          <TouchableOpacity
+            onPress={loadMoreLogs}
+            disabled={loadingMore}
+            style={{
+              backgroundColor: ThemeColors.brandLight,
+              padding: 12,
+              borderRadius: 12,
+              alignItems: 'center',
+              marginTop: 8,
+              marginBottom: 20
+            }}
+          >
+            {loadingMore ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={{ fontFamily: Fonts.bold, color: '#FFFFFF' }}>{t('Load More')}</Text>
+            )}
+          </TouchableOpacity>
         )}
-      </ScrollView>
+          </>
+        }
+      />
 
       {/* FAB FOR ADDING ENTRY */}
       {!isTodayLocked && (

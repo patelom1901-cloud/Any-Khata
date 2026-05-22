@@ -121,7 +121,7 @@ export default async ({ req, res, log, error }) => {
             phone: adData.phone,
             image_file_id: adData.image_file_id || adData.imageFileId || '',
             image_url: adData.image_url || adData.imageUrl,
-            subscription_status: 'active',
+            subscriptionStatus: 'active',
             subscription_expiry,
             created_at: new Date().toISOString().split('T')[0],
             gstin: adData.gstin || '',

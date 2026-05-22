@@ -6,6 +6,8 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
+  FlatList,
+  RefreshControl,
   TouchableOpacity,
   TextInput,
   Image,
@@ -46,6 +48,13 @@ export default function KhataScreen() {
   const [isFetchingLinked, setIsFetchingLinked] = useState(false);
   const [isLinkModalVisible, setIsLinkModalVisible] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchLinkedKhatas();
+    setRefreshing(false);
+  };
   
   // Deletion/Unlinking State
   const [isDeletingMode, setIsDeletingMode] = useState(false);
@@ -127,10 +136,16 @@ export default function KhataScreen() {
         </View>
       )}
 
-      <ScrollView
+      <FlatList
+        data={linkedKhatas}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-      >
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[ThemeColors.brandDark]} />
+        }
+        ListHeaderComponent={
+          <>
         {/* 1. WAVY HEADER */}
         <WavyHeader>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -162,40 +177,48 @@ export default function KhataScreen() {
             </Text>
           </Animated.View>
 
-          {/* 3. LIST CONTAINER */}
-          <View style={styles.listContainer}>
-            {isFetchingLinked ? (
-              <View style={styles.centerLoading}>
-                <ActivityIndicator size="large" color={ThemeColors.brandLight} />
-                <Text style={{ fontFamily: Fonts.semibold, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 16 }}>
-                  {t(`Fetching your records...`)}
-                </Text>
-              </View>
-            ) : linkedKhatas.length === 0 ? (
-              <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
-                  <MaterialIcons name="storefront" size={64} color={ThemeColors.creamBorder} />
+          </View>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.content}>
+            <View style={styles.listContainer}>
+              {isFetchingLinked ? (
+                <View style={styles.centerLoading}>
+                  <ActivityIndicator size="large" color={ThemeColors.brandLight} />
+                  <Text style={{ fontFamily: Fonts.semibold, fontSize: 14, color: ThemeColors.textSecondary, marginTop: 16 }}>
+                    {t(`Fetching your records...`)}
+                  </Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textPrimary }}>
-                  {t(`No Linked Khatas`)}
-                </Text>
-                <Text style={{ fontFamily: Fonts.regular, fontSize: 14, color: ThemeColors.textSecondary, textAlign: 'center', marginTop: 8, paddingHorizontal: 32 }}>
-                  {t(`Link a shop using their 6-digit code to see your balance and history.`)}
-                </Text>
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => setIsLinkModalVisible(true)}
-                >
-                  <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: '#FFFFFF' }}>{t(`Link a Khata Now`)}</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            ) : (
-              linkedKhatas.map((khata, index) => {
-                const balanceColor = khata.balance > 0 ? ThemeColors.creditRed : ThemeColors.paymentGreen;
-                
-                return (
-                  <Animated.View 
-                    key={khata.id}
+              ) : (
+                <Animated.View entering={FadeInUp.delay(200).springify()} style={styles.emptyState}>
+                  <View style={styles.emptyIconContainer}>
+                    <MaterialIcons name="storefront" size={64} color={ThemeColors.creamBorder} />
+                  </View>
+                  <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textPrimary }}>
+                    {t(`No Linked Khatas`)}
+                  </Text>
+                  <Text style={{ fontFamily: Fonts.regular, fontSize: 14, color: ThemeColors.textSecondary, textAlign: 'center', marginTop: 8, paddingHorizontal: 32 }}>
+                    {t(`Link a shop using their 6-digit code to see your balance and history.`)}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={() => setIsLinkModalVisible(true)}
+                  >
+                    <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: '#FFFFFF' }}>{t(`Link a Khata Now`)}</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              )}
+            </View>
+          </View>
+        }
+        renderItem={({ item: khata, index }) => {
+          const balanceColor = khata.balance > 0 ? ThemeColors.creditRed : ThemeColors.paymentGreen;
+          
+          return (
+            <View style={{ paddingHorizontal: 24, paddingBottom: 12 }}>
+              <Animated.View 
+                key={khata.id}
                     entering={FadeInRight.delay(200 + index * 50).springify()}
                     layout={Layout.springify()}
                   >
@@ -247,13 +270,10 @@ export default function KhataScreen() {
                         </View>
                       </TouchableOpacity>
                     </DraggableDeletionWrapper>
-                  </Animated.View>
-                );
-              })
-            )}
-          </View>
-        </View>
-      </ScrollView>
+              </View>
+          );
+        }}
+      />
 
       {/* 4. LINK KHATA MODAL */}
       <Modal

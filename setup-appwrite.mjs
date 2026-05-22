@@ -167,7 +167,7 @@ async function main() {
   await createStringAttr(DB, "businesses", "city", 100, false);
   await createStringAttr(DB, "businesses", "state", 100, false);
   await createBoolAttr(DB, "businesses", "is_active", false, true);
-  await createStringAttr(DB, "businesses", "subscription_status", 20, false);
+  await createStringAttr(DB, "businesses", "subscriptionStatus", 20, false);
   await createStringAttr(DB, "businesses", "subscription_expiry", 20, false);
   await createStringAttr(DB, "businesses", "created_at", 255, true);
   await createIndex(DB, "businesses", "idx_owner_id", "key", ["owner_id"], ["ASC"]);

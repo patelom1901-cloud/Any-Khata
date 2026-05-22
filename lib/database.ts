@@ -13,14 +13,17 @@ import { useAuthStore } from '../store/authStore';
 
 // ─── Customers ───────────────────────────────────────────────
 
-export const getCustomersByBusiness = async (businessId: string): Promise<Customer[]> => {
-  const res = await databases.listDocuments(DB_ID, COL_CUSTOMERS, [
+export const getCustomersByBusiness = async (businessId: string, cursor: string | null = null): Promise<Customer[]> => {
+  const queries = [
     Query.equal('business_id', businessId),
+    Query.equal('is_deleted', false),
     Query.orderAsc('name'),
-    Query.limit(100),
-  ]);
-  const activeDocs = res.documents.filter((doc: any) => doc.is_deleted !== true);
-  return activeDocs.map((doc: any) => ({
+    Query.limit(20),
+  ];
+  if (cursor) queries.push(Query.cursorAfter(cursor));
+
+  const res = await databases.listDocuments(DB_ID, COL_CUSTOMERS, queries);
+  return res.documents.map((doc: any) => ({
     customerId: doc.$id,
     businessId: doc.business_id,
     name: doc.name,
@@ -107,10 +110,10 @@ export const getMyLinkedKhatas = async (userId: string): Promise<any[]> => {
   try {
     const res = await databases.listDocuments(DB_ID, COL_CUSTOMERS, [
       Query.equal('linked_user_id', userId),
+      Query.equal('is_deleted', false),
     ]);
 
-    const activeDocs = res.documents.filter((doc: any) => doc.is_deleted !== true);
-    const linked = activeDocs.map((doc: any) => ({
+    const linked = res.documents.map((doc: any) => ({
       id: doc.$id || doc.customerId,
       businessId: doc.business_id || doc.businessId,
       balance: doc.balance || doc.totalDue || 0,
@@ -136,16 +139,15 @@ export const linkKhataByCode = async (userId: string, linkCode: string): Promise
   try {
     const res = await databases.listDocuments(DB_ID, COL_CUSTOMERS, [
       Query.equal('link_code', linkCode),
+      Query.equal('is_deleted', false),
       Query.limit(10),
     ]);
 
-    const activeDocs = res.documents.filter((doc: any) => doc.is_deleted !== true);
-
-    if (activeDocs.length === 0) {
+    if (res.documents.length === 0) {
       return { success: false, message: 'Invalid code. Ask your shopkeeper for the correct code.' };
     }
 
-    const doc = activeDocs[0];
+    const doc = res.documents[0];
     if (doc.linked_user_id && doc.linked_user_id.length > 0) {
       return { success: false, message: 'This code is already linked to an account.' };
     }
@@ -182,22 +184,25 @@ export const unlinkKhata = async (customerId: string): Promise<{ success: boolea
 
 export const getDayLogsForCustomer = async (
   businessId: string | undefined,
-  customerId: string
+  customerId: string,
+  cursor: string | null = null
 ): Promise<DayLog[]> => {
   const queries = [
     Query.equal('customer_id', customerId),
+    Query.equal('is_deleted', false),
     Query.orderDesc('date'),
-    Query.limit(365),
+    Query.limit(20),
   ];
 
   if (businessId) {
     queries.push(Query.equal('business_id', businessId));
   }
+  
+  if (cursor) queries.push(Query.cursorAfter(cursor));
 
   const res = await databases.listDocuments(DB_ID, COL_DAY_LOGS, queries);
 
   return res.documents
-    .filter((doc: any) => !doc.is_deleted) // Filter out soft-deleted logs
     .map((doc: any) => ({
       dayLogId: doc.$id,
       businessId: doc.business_id,
@@ -221,16 +226,12 @@ export const getOrCreateDayLog = async (
     Query.equal('business_id', businessId),
     Query.equal('customer_id', customerId),
     Query.equal('date', today),
+    Query.equal('is_deleted', false),
     Query.limit(1),
   ]);
 
   if (existing.documents.length > 0) {
     const doc = existing.documents[0] as any;
-    if (doc.is_deleted) {
-      // Reactivate if deleted today? Or just ignore.
-      // For now, let's just clear the deleted flag if they want to add something today.
-      await databases.updateDocument(DB_ID, COL_DAY_LOGS, doc.$id, { is_deleted: false });
-    }
     return {
       ...doc,
       dayLogId: doc.$id,
@@ -307,8 +308,17 @@ export const addEntryToDayLog = async (
     day_total: newTotal,
   });
 
-  // Recalculate customer balance after every entry
-  await recalcAndUpdateCustomerBalance(dayLog.customerId);
+  // Atomic balance update
+  const customerDoc = await databases.getDocument(DB_ID, COL_CUSTOMERS, dayLog.customerId);
+  const currentBalance = (customerDoc as any).balance || 0;
+  const amountToApply = Number(amount) || 0;
+  const newBalance = type === 'gave' 
+    ? currentBalance + amountToApply
+    : currentBalance - amountToApply;
+    
+  await databases.updateDocument(DB_ID, COL_CUSTOMERS, dayLog.customerId, {
+    balance: newBalance
+  });
 
   return { ...dayLog, entries: updatedEntries, dayTotal: newTotal };
 };
@@ -354,7 +364,7 @@ export const getBusinessByOwner = async (ownerId: string): Promise<Business | nu
     state: doc.state || '',
     storePhotoUrl: doc.store_photo_url || null,
     isActive: doc.is_active !== false,
-    subscriptionStatus: doc.subscription_status || 'pending',
+    subscriptionStatus: doc.subscriptionStatus || 'pending',
     subscriptionExpiry: doc.subscription_expiry || '',
     createdAt: doc.created_at,
   } as unknown as Business;
@@ -374,7 +384,7 @@ export const getBusiness = async (businessId: string): Promise<Business | null> 
       state: (doc as any).state || '',
       storePhotoUrl: (doc as any).store_photo_url || null,
       isActive: (doc as any).is_active !== false,
-      subscriptionStatus: (doc as any).subscription_status || 'pending',
+      subscriptionStatus: (doc as any).subscriptionStatus || 'pending',
       subscriptionExpiry: (doc as any).subscription_expiry || '',
       createdAt: (doc as any).created_at,
     } as unknown as Business;
@@ -397,7 +407,7 @@ export const getBusinessById = async (businessId: string): Promise<Business | nu
       state: (doc as any).state || '',
       storePhotoUrl: (doc as any).store_photo_url || null,
       isActive: (doc as any).is_active !== false,
-      subscriptionStatus: (doc as any).subscription_status || 'pending',
+      subscriptionStatus: (doc as any).subscriptionStatus || 'pending',
       subscriptionExpiry: (doc as any).subscription_expiry || '',
       createdAt: (doc as any).created_at,
     } as unknown as Business;
@@ -464,13 +474,31 @@ export const deleteAllUserData = async (userId: string): Promise<void> => {
     const businessId = businessDoc.$id;
 
     // 2. Delete all customers under that business
-    const customersRes = await databases.listDocuments(DB_ID, COL_CUSTOMERS, [
-      Query.equal('business_id', businessId),
-      Query.limit(100),
-    ]);
+    let hasMore = true;
+    while (hasMore) {
+      const batch = await databases.listDocuments(DB_ID, COL_CUSTOMERS, [
+        Query.equal('business_id', businessId),
+        Query.equal('is_deleted', false),
+        Query.limit(100),
+      ]);
+      for (const c of batch.documents) {
+        await databases.updateDocument(DB_ID, COL_CUSTOMERS, c.$id, { is_deleted: true });
+      }
+      hasMore = batch.documents.length === 100;
+    }
 
-    for (const customer of customersRes.documents) {
-      await deleteCustomer(customer.$id);
+    // 2.5 Delete all day_logs under that business
+    let hasMoreLogs = true;
+    while (hasMoreLogs) {
+      const logBatch = await databases.listDocuments(DB_ID, COL_DAY_LOGS, [
+        Query.equal('business_id', businessId),
+        Query.equal('is_deleted', false),
+        Query.limit(100),
+      ]);
+      for (const log of logBatch.documents) {
+        await databases.updateDocument(DB_ID, COL_DAY_LOGS, log.$id, { is_deleted: true });
+      }
+      hasMoreLogs = logBatch.documents.length === 100;
     }
 
     // 3. Delete the business document
@@ -498,7 +526,8 @@ export const deleteAllUserData = async (userId: string): Promise<void> => {
 export const getActiveAds = async (): Promise<Ad[]> => {
   try {
     const res = await databases.listDocuments(DB_ID, COL_ADS, [
-      Query.equal('subscription_status', 'active'),
+      Query.equal('subscriptionStatus', 'active'),
+      Query.equal('is_deleted', false),
       Query.orderDesc('$createdAt'),
       Query.limit(50),
     ]);
@@ -509,7 +538,7 @@ export const getActiveAds = async (): Promise<Ad[]> => {
       phone: doc.phone || '',
       image_file_id: doc.image_file_id || '',
       image_url: doc.image_url || '',
-      subscription_status: doc.subscription_status || 'active',
+      subscriptionStatus: doc.subscriptionStatus || 'active',
       subscription_expiry: doc.subscription_expiry || '',
       created_at: doc.created_at || doc.$createdAt || '',
       gstin: doc.gstin || '',
@@ -537,7 +566,7 @@ export const getActiveBusinessesWithAds = async (): Promise<Business[]> => {
     city: doc.city || '',
     state: doc.state || '',
     isActive: doc.is_active !== false,
-    subscriptionStatus: doc.subscription_status || 'pending',
+    subscriptionStatus: doc.subscriptionStatus || 'pending',
     subscriptionExpiry: doc.subscription_expiry || '',
     createdAt: doc.created_at,
   })) as unknown as Business[];
@@ -553,7 +582,7 @@ export const getAd = async (adId: string): Promise<Ad | null> => {
       phone: (doc as any).phone,
       image_file_id: (doc as any).image_file_id,
       image_url: (doc as any).image_url,
-      subscription_status: (doc as any).subscription_status,
+      subscriptionStatus: (doc as any).subscriptionStatus,
       subscription_expiry: (doc as any).subscription_expiry,
       created_at: (doc as any).created_at || (doc as any).$createdAt,
       gstin: (doc as any).gstin || '',
@@ -571,7 +600,7 @@ export const createAd = async (data: {
   phone: string;
   image_file_id?: string;
   image_url: string;
-  subscription_status?: string;
+  subscriptionStatus?: string;
   subscription_expiry?: string;
   gstin?: string;
   website_url?: string;
@@ -588,7 +617,7 @@ export const createAd = async (data: {
     phone: data.phone,
     image_file_id: data.image_file_id || '',
     image_url: data.image_url,
-    subscription_status: data.subscription_status || 'pending',
+    subscriptionStatus: data.subscriptionStatus || 'pending',
     subscription_expiry: (data.subscription_expiry || '').split('T')[0],
     created_at: new Date().toISOString().split('T')[0],
   };
@@ -616,7 +645,7 @@ export const createAd = async (data: {
     phone: (doc as any).phone,
     image_file_id: (doc as any).image_file_id,
     image_url: (doc as any).image_url,
-    subscription_status: (doc as any).subscription_status,
+    subscriptionStatus: (doc as any).subscriptionStatus,
     subscription_expiry: (doc as any).subscription_expiry,
     created_at: (doc as any).created_at,
     gstin: (doc as any).gstin || '',
@@ -634,7 +663,7 @@ export const updateAd = async (adId: string, payload: Partial<Ad>): Promise<Ad> 
     phone: (doc as any).phone || '',
     image_file_id: (doc as any).image_file_id || '',
     image_url: (doc as any).image_url || '',
-    subscription_status: (doc as any).subscription_status || 'active',
+    subscriptionStatus: (doc as any).subscriptionStatus || 'active',
     subscription_expiry: (doc as any).subscription_expiry || '',
     created_at: (doc as any).created_at || (doc as any).$createdAt || '',
     gstin: (doc as any).gstin || '',
@@ -647,6 +676,7 @@ export const getAdsByUserId = async (userId: string): Promise<Ad[]> => {
   try {
     const results = await databases.listDocuments(DB_ID, COL_ADS, [
       Query.equal('user_id', userId),
+      Query.equal('is_deleted', false),
       Query.orderDesc('$createdAt'),
     ]);
     return results.documents.map((doc: any) => ({
@@ -657,7 +687,7 @@ export const getAdsByUserId = async (userId: string): Promise<Ad[]> => {
       phone: doc.phone || '',
       image_file_id: doc.image_file_id || '',
       image_url: doc.image_url || '',
-      subscription_status: doc.subscription_status || 'active',
+      subscriptionStatus: doc.subscriptionStatus || 'active',
       subscription_expiry: doc.subscription_expiry || '',
       created_at: doc.created_at || doc.$createdAt || '',
       gstin: doc.gstin || '',
@@ -705,15 +735,25 @@ export const createBusinessSubscription = async (data: {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
-  const doc = await databases.createDocument(DB_ID, COL_SUBSCRIPTIONS, ID.unique(), {
-    user_id: data.userId,
-    plan: 'business_monthly',
-    status: 'active',
-    amount: 11,
-    started_at: now.toISOString(),
-    expires_at: expiresAt.toISOString(),
-    cashfree_order_id: data.cashfreeOrderId,
-  });
+  const doc = await databases.createDocument(
+    DB_ID,
+    COL_SUBSCRIPTIONS,
+    ID.unique(),
+    {
+      user_id: data.userId,
+      plan: 'business_monthly',
+      status: 'active',
+      amount: 11,
+      started_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      cashfree_order_id: data.cashfreeOrderId,
+    },
+    [
+      Permission.read(Role.user(data.userId)),
+      Permission.update(Role.user(data.userId)),
+      Permission.delete(Role.user(data.userId))
+    ]
+  );
   return doc;
 };
 
@@ -747,6 +787,7 @@ export const upsertTodayDayLog = async (
   const existing = await databases.listDocuments(DB_ID, COL_DAY_LOGS, [
     Query.equal('customer_id', customerId),
     Query.equal('date', today),
+    Query.equal('is_deleted', false),
     Query.limit(1),
   ]);
 
@@ -772,6 +813,10 @@ export const upsertTodayDayLog = async (
     });
   } else {
     // Create a brand new day_log for today
+    let newTotal = 0;
+    if (entry.type === 'gave') {
+        newTotal = Number(entry.amount) || 0;
+    }
     await databases.createDocument(
       DB_ID,
       COL_DAY_LOGS,
@@ -781,7 +826,7 @@ export const upsertTodayDayLog = async (
         business_id: businessId,
         date: today,
         entries: JSON.stringify([newEntry]),
-        day_total: isNaN(initialTotal) ? 0 : initialTotal,
+        day_total: newTotal,
         is_locked: false,
       },
       [
@@ -791,40 +836,18 @@ export const upsertTodayDayLog = async (
       ]
     );
   }
-};
 
-/**
- * Recalculate customer balance from ALL day_log entries.
- * balance = Σ(gave entries) − Σ(got entries)
- */
-export const recalcAndUpdateCustomerBalance = async (customerId: string): Promise<void> => {
-  const res = await databases.listDocuments(DB_ID, COL_DAY_LOGS, [
-    Query.equal('customer_id', customerId),
-    Query.limit(1000),
-  ]);
+  // Atomic balance update
+  const customerDoc = await databases.getDocument(DB_ID, COL_CUSTOMERS, customerId);
+  const currentBalance = (customerDoc as any).balance || 0;
+  const amountToApply = Number(entry.amount) || 0;
+  const newBalance = entry.type === 'gave' 
+    ? currentBalance + amountToApply
+    : currentBalance - amountToApply;
 
-  let totalGave = 0;
-  let totalGot = 0;
-
-  for (const doc of res.documents) {
-    if ((doc as any).is_deleted) continue; // Skip deleted logs
-    let entries: any[] = [];
-    try {
-      const raw = (doc as any).entries;
-      entries = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
-    } catch {
-      entries = [];
-    }
-    for (const e of entries) {
-      if (e.is_deleted) continue;
-      const amt = Number(e.amount) || 0;
-      if (e.type === 'gave' || e.type === 'debit') totalGave += amt;
-      else if (e.type === 'got' || e.type === 'credit') totalGot += amt;
-    }
-  }
-
-  const balance = totalGave - totalGot;
-  await databases.updateDocument(DB_ID, COL_CUSTOMERS, customerId, { balance });
+  await databases.updateDocument(DB_ID, COL_CUSTOMERS, customerId, {
+    balance: newBalance
+  });
 };
 
 /** Specifically add a "Got" entry (payment) to today's day_log */
@@ -841,9 +864,6 @@ export const addGotEntryToDayLog = async (
     type: 'got',
     note,
   }, ownerId);
-
-  // Recalculate balance after adding got entry
-  await recalcAndUpdateCustomerBalance(customerId);
 };
 
 /**
@@ -855,6 +875,22 @@ export const softDeleteDayLog = async (dayLogId: string): Promise<void> => {
 
   if ((doc as any).is_locked) {
     throw new Error('This day is locked. Past records cannot be deleted.');
+  }
+
+  const entries: DayEntry[] = JSON.parse((doc as any).entries || '[]');
+  const activeEntries = entries.filter((e: DayEntry) => !e.is_deleted);
+  if (activeEntries.length > 0) {
+    const customerId = (doc as any).customer_id;
+    const customerDoc = await databases.getDocument(DB_ID, COL_CUSTOMERS, customerId);
+    let balance = (customerDoc as any).balance || 0;
+    for (const entry of activeEntries) {
+      if (entry.type === 'gave' || entry.type === 'debit') {
+        balance -= Number(entry.amount) || 0;
+      } else if (entry.type === 'got' || entry.type === 'credit') {
+        balance += Number(entry.amount) || 0;
+      }
+    }
+    await databases.updateDocument(DB_ID, COL_CUSTOMERS, customerId, { balance });
   }
 
   await databases.updateDocument(DB_ID, COL_DAY_LOGS, dayLogId, {
@@ -884,25 +920,35 @@ export const verifyAndActivateSubscription = async (
   const expiryString = newExpiry.toISOString().split('T')[0]; // "YYYY-MM-DD"
 
   // Create record in COL_SUBSCRIPTIONS
-  await databases.createDocument(DB_ID, COL_SUBSCRIPTIONS, ID.unique(), {
-    user_id: userId,
-    type: type,
-    reference_id: referenceId,
-    amount: type === 'business' ? 11 : 100,
-    status: 'paid',
-    paid_at: new Date().toISOString().split('T')[0],
-    valid_until: expiryString,
-  });
+  await databases.createDocument(
+    DB_ID,
+    COL_SUBSCRIPTIONS,
+    ID.unique(),
+    {
+      user_id: userId,
+      type: type,
+      reference_id: referenceId,
+      amount: type === 'business' ? 11 : 100,
+      status: 'paid',
+      paid_at: new Date().toISOString().split('T')[0],
+      valid_until: expiryString,
+    },
+    [
+      Permission.read(Role.user(userId)),
+      Permission.update(Role.user(userId)),
+      Permission.delete(Role.user(userId))
+    ]
+  );
 
   // 1. Update actual document status and expiry based on type
   if (type === 'business') {
     await databases.updateDocument(DB_ID, COL_BUSINESSES, referenceId, {
-      subscription_status: 'active',
+      subscriptionStatus: 'active',
       subscription_expiry: expiryString,
     });
   } else if (type === 'ad') {
     await databases.updateDocument(DB_ID, COL_ADS, referenceId, {
-      subscription_status: 'active',
+      subscriptionStatus: 'active',
       subscription_expiry: expiryString,
     });
   }
@@ -935,11 +981,17 @@ export const updateDayLogEntry = async (
     throw new Error('Entry not found');
   }
 
+  const oldAmount = Number(entries[entryIndex].amount) || 0;
+  const oldType = entries[entryIndex].type;
+
   // Apply updates
   if (updates.description !== undefined) entries[entryIndex].description = updates.description;
   if (updates.amount !== undefined) entries[entryIndex].amount = updates.amount;
   if (updates.type !== undefined) entries[entryIndex].type = updates.type;
   if (updates.quantity !== undefined) entries[entryIndex].quantity = updates.quantity;
+
+  const newAmount = Number(entries[entryIndex].amount) || 0;
+  const newType = entries[entryIndex].type;
 
   // Recalculate day_total (gave entries only, not deleted)
   let newTotal = entries
@@ -950,6 +1002,26 @@ export const updateDayLogEntry = async (
   await databases.updateDocument(DB_ID, COL_DAY_LOGS, dayLogId, {
     entries: JSON.stringify(entries),
     day_total: newTotal,
+  });
+
+  const customerId = (doc as any).customer_id;
+  const customerDoc = await databases.getDocument(DB_ID, COL_CUSTOMERS, customerId);
+  let currentBalance = (customerDoc as any).balance || 0;
+
+  if (oldType === newType) {
+      const delta = newAmount - oldAmount;
+      if (newType === 'gave' || newType === 'debit') currentBalance += delta;
+      else if (newType === 'got' || newType === 'credit') currentBalance -= delta;
+  } else {
+      if (oldType === 'gave' || oldType === 'debit') currentBalance -= oldAmount;
+      else if (oldType === 'got' || oldType === 'credit') currentBalance += oldAmount;
+
+      if (newType === 'gave' || newType === 'debit') currentBalance += newAmount;
+      else if (newType === 'got' || newType === 'credit') currentBalance -= newAmount;
+  }
+
+  await databases.updateDocument(DB_ID, COL_CUSTOMERS, customerId, {
+    balance: currentBalance
   });
 };
 
@@ -974,6 +1046,9 @@ export const softDeleteDayLogEntry = async (
     throw new Error('Entry not found');
   }
 
+  const deletedAmount = Number(entries[entryIndex].amount) || 0;
+  const deletedType = entries[entryIndex].type;
+
   // Mark as deleted
   entries[entryIndex].is_deleted = true;
 
@@ -986,5 +1061,16 @@ export const softDeleteDayLogEntry = async (
   await databases.updateDocument(DB_ID, COL_DAY_LOGS, dayLogId, {
     entries: JSON.stringify(entries),
     day_total: newTotal,
+  });
+
+  const customerId = (doc as any).customer_id;
+  const customerDoc = await databases.getDocument(DB_ID, COL_CUSTOMERS, customerId);
+  const currentBalance = (customerDoc as any).balance || 0;
+  const newBalance = deletedType === 'gave' || deletedType === 'debit'
+    ? currentBalance - deletedAmount
+    : currentBalance + deletedAmount;
+
+  await databases.updateDocument(DB_ID, COL_CUSTOMERS, customerId, {
+    balance: newBalance
   });
 };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, StatusBar, SafeAreaView, ActivityIndicator } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Input } from '../../../../../components/ui/Input';
-import { addGotEntryToDayLog, recalcAndUpdateCustomerBalance } from '../../../../../lib/database';
+import { addGotEntryToDayLog } from '../../../../../lib/database';
 import { useAuthStore } from '../../../../../store/authStore';
 import { useBusinessStore } from '../../../../../store/businessStore';
 import { isValidAmount } from '../../../../../utils/currencyUtils';
@@ -26,12 +26,14 @@ export default function AddPaymentScreen() {
       Alert.alert(t(`Error`), t(`Enter a valid amount greater than 0`));
       return;
     }
-    console.log("RECORD_PAYMENT_DEBUG:", {
-      customerId: customerId,
-      businessId: business?.businessId,
-      user: user?.uid || user?.id,
-      amount: parsedAmount
-    });
+    if (__DEV__) {
+      console.log("RECORD_PAYMENT_DEBUG:", {
+        customerId: customerId,
+        businessId: business?.businessId,
+        user: user?.uid || user?.id,
+        amount: parsedAmount
+      });
+    }
     if (!business || !customerId || !user) {
       Alert.alert(t(`Error`), t(`Missing required data`));
       return;
@@ -47,7 +49,6 @@ export default function AddPaymentScreen() {
         userId,
         note.trim() || undefined
       );
-      await recalcAndUpdateCustomerBalance(customerId);
       Alert.alert(t(`Success`), t(`Payment recorded successfully`));
       router.back();
     } catch (err: any) {
