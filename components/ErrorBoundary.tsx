@@ -1,6 +1,5 @@
 import React, { Component, ReactNode, ErrorInfo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import * as Updates from 'expo-updates';
+import { View, Text, StyleSheet, TouchableOpacity, DevSettings } from 'react-native';
 
 interface Props {
   children: ReactNode;
@@ -25,11 +24,11 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
   }
 
-  handleRestart = async () => {
+  handleRestart = () => {
     try {
-      await Updates.reloadAsync();
+      DevSettings.reload();
     } catch (e) {
-      console.warn("Could not reload app. It might not be supported in Expo Go.", e);
+      console.warn("Could not reload app.", e);
     }
   };
 

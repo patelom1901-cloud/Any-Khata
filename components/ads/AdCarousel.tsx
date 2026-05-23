@@ -5,9 +5,9 @@ import {
   StyleSheet,
   Dimensions,
   TouchableOpacity,
-  Image,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { Ad } from '../../types';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -164,9 +164,11 @@ function CarouselItem({ item, index, scrollX, onPress }: { item: Ad, index: numb
         style={styles.slide}
       >
         <Image 
-          source={{ uri: item.image_url }} 
+          source={item.image_url}
+          cachePolicy="disk"
+          transition={200}
           style={styles.image}
-          resizeMode="cover"
+          contentFit="cover"
         />
         <LinearGradient
           colors={['transparent', 'rgba(26, 8, 3, 0.9)']}

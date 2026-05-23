@@ -6,11 +6,11 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   StatusBar,
   SafeAreaView
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useForm, Controller } from 'react-hook-form';
@@ -227,7 +227,13 @@ export default function AdEditScreen() {
             {isUploadingPhoto ? (
               <ActivityIndicator size="large" color={ThemeColors.brandLight} />
             ) : imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.photoPreview} resizeMode="cover" />
+              <Image 
+                source={imageUrl} 
+                cachePolicy="disk"
+                transition={200}
+                style={styles.photoPreview} 
+                contentFit="cover" 
+              />
             ) : (
               <View style={styles.photoPlaceholder}>
                 <MaterialIcons name="add-a-photo" size={36} color={ThemeColors.brandMid} />

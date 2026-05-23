@@ -81,29 +81,49 @@ export default async ({ req, res, log, error }) => {
 
       // 3. Payment is PAID! Perform actions
       if (orderDoc.type === 'business') {
-        const now = new Date();
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
-
-        await db.createDocument(
+        const existingSubs = await db.listDocuments(
           DB_ID,
           COL_SUBSCRIPTIONS,
-          ID.unique(),
-          {
-            user_id: orderDoc.userId,
-            plan: 'business_monthly',
-            status: 'active',
-            amount: 11,
-            started_at: now.toISOString(),
-            expires_at: expiresAt.toISOString(),
-            cashfree_order_id: orderId,
-          },
           [
-            Permission.read(Role.user(orderDoc.userId)),
-            Permission.update(Role.user(orderDoc.userId))
+            Query.equal('user_id', orderDoc.userId),
+            Query.equal('status', 'active')
           ]
         );
-        log(`[verify-cashfree-payment] Created business subscription for ${orderDoc.userId}`);
+
+        if (existingSubs.total > 0) {
+          const existing = existingSubs.documents[0];
+          const newExpiry = new Date(existing.expires_at);
+          newExpiry.setDate(newExpiry.getDate() + 30);
+          await db.updateDocument(DB_ID, COL_SUBSCRIPTIONS, existing.$id, {
+            expires_at: newExpiry.toISOString().split('T')[0],
+            cashfree_order_id: orderId
+          });
+          log(`[verify-cashfree-payment] Updated business subscription for ${orderDoc.userId}`);
+        } else {
+          const now = new Date();
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 30);
+
+          await db.createDocument(
+            DB_ID,
+            COL_SUBSCRIPTIONS,
+            ID.unique(),
+            {
+              user_id: orderDoc.userId,
+              plan: 'business_monthly',
+              status: 'active',
+              amount: 11,
+              started_at: now.toISOString().split('T')[0],
+              expires_at: expiresAt.toISOString().split('T')[0],
+              cashfree_order_id: orderId,
+            },
+            [
+              Permission.read(Role.user(orderDoc.userId)),
+              Permission.update(Role.user(orderDoc.userId))
+            ]
+          );
+          log(`[verify-cashfree-payment] Created business subscription for ${orderDoc.userId}`);
+        }
       } else if (orderDoc.type === 'ad') {
         const adData = JSON.parse(orderDoc.adPayload || '{}');
         const expiryDate = new Date();

@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  Image,
   Linking,
   Pressable,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTranslation } from '../../hooks/useTranslation';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -79,9 +79,11 @@ export function BusinessModal({ ad, onClose }: BusinessModalProps) {
           {/* Store image */}
           {ad.image_url ? (
             <Image
-              source={{ uri: ad.image_url }}
+              source={ad.image_url}
+              cachePolicy="disk"
+              transition={200}
               style={styles.modalImage}
-              resizeMode="cover"
+              contentFit="cover"
             />
           ) : (
             <View style={[styles.modalImage, styles.modalImagePlaceholder]}>

@@ -20,7 +20,7 @@ interface DayLogCardProps {
   onDeactivateDeletion?: () => void;
 }
 
-export const DayLogCard = ({ 
+export const DayLogCard = React.memo(({ 
   dayLog, 
   onAddEntry, 
   onPress,
@@ -141,7 +141,7 @@ export const DayLogCard = ({
   }
 
   return cardContent;
-};
+});
 
 const styles = StyleSheet.create({
   card: {

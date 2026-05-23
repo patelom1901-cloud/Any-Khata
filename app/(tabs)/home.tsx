@@ -3,6 +3,7 @@ import {
   View, 
   Text, 
   FlatList,
+  ScrollView,
   RefreshControl,
   TouchableOpacity, 
   Image, 
@@ -68,6 +69,13 @@ const HomeScreen = () => {
   
   // Business Management State
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const [activeFilter, setActiveFilter] = useState('all');
   const searchInputRef = useRef<TextInput>(null);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -226,8 +234,8 @@ const HomeScreen = () => {
   const filteredCustomers = useMemo(() => {
     let result = customers.filter(
       (c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.phone.includes(searchQuery)
+        c.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        c.phone.includes(debouncedQuery)
     );
 
     switch (activeFilter) {
@@ -244,7 +252,7 @@ const HomeScreen = () => {
     }
 
     return result;
-  }, [customers, searchQuery, activeFilter]);
+  }, [customers, debouncedQuery, activeFilter]);
 
   const handleAddCustomer = () => {
     setIsAddModalVisible(true);

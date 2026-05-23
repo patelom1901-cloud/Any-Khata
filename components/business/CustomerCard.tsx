@@ -13,7 +13,7 @@ interface Props {
   onPress: () => void;
 }
 
-export const CustomerCard = ({ customer, onPress }: Props) => {
+export const CustomerCard = React.memo(({ customer, onPress }: Props) => {
   const { t } = useTranslation();
   const initials = customer.name
     .split(' ')
@@ -47,7 +47,7 @@ export const CustomerCard = ({ customer, onPress }: Props) => {
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

@@ -270,6 +270,7 @@ export default function KhataScreen() {
                         </View>
                       </TouchableOpacity>
                     </DraggableDeletionWrapper>
+                  </Animated.View>
               </View>
           );
         }}

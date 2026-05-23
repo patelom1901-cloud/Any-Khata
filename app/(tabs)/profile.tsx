@@ -14,6 +14,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Stack, router } from 'expo-router';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -25,7 +26,7 @@ import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveS
 import { clearCachedUser } from '../../lib/auth';
 import { deleteUserAccount, createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { FEATURES } from '../../constants/config';
-import type { Locale } from '../../constants/i18n';
+import type { Locale } from '../../constants/i18n/index';
 import { useTranslation } from "../../hooks/useTranslation";
 import { Ad } from '../../types';
 import { WavyHeader } from '../../components/ui/WavyHeader';
@@ -290,7 +291,12 @@ export default function ProfileScreen() {
                     <View style={styles.cardRow}>
                       <View style={styles.businessLeft}>
                         {ad.image_url ? (
-                          <Image source={{ uri: ad.image_url }} style={styles.adImg} />
+                          <ExpoImage 
+                            source={ad.image_url} 
+                            cachePolicy="disk"
+                            transition={200}
+                            style={styles.adImg} 
+                          />
                         ) : (
                           <View style={styles.iconBox}>
                             <MaterialIcons name="image" size={24} color={ThemeColors.brandMid} />

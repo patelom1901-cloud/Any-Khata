@@ -12,11 +12,11 @@ import {
   Alert,
   RefreshControl,
   Modal,
-  Image,
   Linking,
   Pressable,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Stack, router } from 'expo-router';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -56,9 +56,11 @@ function BusinessCard({ ad, index, onPress }: BusinessCardProps) {
       >
         {ad.image_url ? (
           <Image
-            source={{ uri: ad.image_url }}
+            source={ad.image_url}
+            cachePolicy="disk"
+            transition={200}
             style={styles.cardImage}
-            resizeMode="cover"
+            contentFit="cover"
           />
         ) : (
           <View style={[styles.cardImage, styles.cardImagePlaceholder]}>

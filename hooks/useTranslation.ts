@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { translations, Locale, TranslationKey } from '../constants/i18n';
+import { translations, Locale, TranslationKey } from '../constants/i18n/index';
 
 // For React Native / Expo environment
 const __DEV__ = process.env.NODE_ENV !== 'production';

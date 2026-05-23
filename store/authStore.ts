@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppUser } from '../types';
-import type { Locale } from '../constants/i18n';
+import type { Locale } from '../constants/i18n/index';
 
 interface AuthState {
   user: AppUser | null;

@@ -6,11 +6,11 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   StatusBar,
   SafeAreaView
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
@@ -218,7 +218,13 @@ export default function AdSubmitScreen() {
             {isUploadingPhoto ? (
               <ActivityIndicator size="large" color={ThemeColors.brandLight} />
             ) : imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.photoPreview} resizeMode="cover" />
+              <Image 
+                source={imageUrl} 
+                cachePolicy="disk"
+                transition={200}
+                style={styles.photoPreview} 
+                contentFit="cover" 
+              />
             ) : (
               <View style={styles.photoPlaceholder}>
                 <MaterialIcons name="add-a-photo" size={36} color={ThemeColors.brandMid} />

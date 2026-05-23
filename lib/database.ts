@@ -525,11 +525,11 @@ export const deleteAllUserData = async (userId: string): Promise<void> => {
 
 export const getActiveAds = async (): Promise<Ad[]> => {
   try {
+    const todayDateString = new Date().toISOString().split('T')[0];
     const res = await databases.listDocuments(DB_ID, COL_ADS, [
-      Query.equal('subscriptionStatus', 'active'),
       Query.equal('is_deleted', false),
-      Query.orderDesc('$createdAt'),
-      Query.limit(50),
+      Query.equal('subscription_status', 'active'),
+      Query.greaterThanEqual('subscription_expiry', todayDateString),
     ]);
     return res.documents.map((doc: any) => ({
       adId: doc.$id,
