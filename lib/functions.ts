@@ -59,20 +59,21 @@ export const verifyCashfreePayment = async (params: {
 
 /**
  * Delete a user's account and all associated data.
- * Calls the `delete-user-account` Appwrite Cloud Function (server-side only).
- * The function uses the server SDK + API key to call users.delete(userId).
+ * Calls the `create-cashfree-order` function with path `/delete-account`.
+ * (Merged into the same function due to Appwrite Free tier 2-function limit.)
+ * The function uses the server SDK + API key to soft-delete all data
+ * and then hard-delete the auth user via users.delete(userId).
  *
  * @param userId - The Appwrite user ID ($id) of the account to delete
- * @param functionId - The deployed Appwrite Function ID (set in Appwrite Console)
  */
 export const deleteUserAccount = async (
   userId: string,
-  functionId: string = 'delete-user-account'
 ): Promise<void> => {
   const result = await functions.createExecution(
-    functionId,
+    'create-cashfree-order',
     JSON.stringify({ userId }),
     false, // synchronous — wait for response
+    '/delete-account',
   );
 
   if (result.status !== 'completed') {
@@ -83,10 +84,11 @@ export const deleteUserAccount = async (
   try {
     parsed = JSON.parse(result.responseBody);
   } catch {
-    throw new Error('Invalid response from delete-user-account function');
+    throw new Error('Invalid response from delete-account function');
   }
 
   if (!parsed.success) {
     throw new Error(parsed.error ?? 'Account deletion failed in Cloud Function');
   }
 };
+

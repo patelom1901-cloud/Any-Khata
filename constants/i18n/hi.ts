@@ -301,4 +301,5 @@ export default {
     'News about new features and improvements': 'नई सुविधाओं और सुधारों की खबर',
     'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.': 'सूचना प्राथमिकताएं इस डिवाइस पर स्थानीय रूप से सहेजी जाती हैं। सिस्टम-स्तर की सूचना अनुमतियां प्रबंधित करने के लिए, डिवाइस सेटिंग्स → Any Khata → सूचनाएं पर जाएं।',
     'No entries for this customer': 'इस ग्राहक के लिए कोई एंट्री नहीं',
+    'No customers found': 'कोई ग्राहक नहीं मिला',
   } as const;

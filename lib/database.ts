@@ -824,7 +824,11 @@ export const upsertTodayDayLog = async (
       {
         customer_id: customerId,
         business_id: businessId,
+        amount: Number(entry.amount) || 0,
+        type: entry.type,
         date: today,
+        note: entry.note || '',
+        is_deleted: false,
         entries: JSON.stringify([newEntry]),
         day_total: newTotal,
         is_locked: false,

@@ -1,8 +1,8 @@
-import { Client, Databases, Query, ID, Permission, Role } from 'node-appwrite';
+import { Client, Databases, Query, ID, Permission, Role, Users } from 'node-appwrite';
 
 /**
- * create-cashfree-order / verify-cashfree-payment — Appwrite Cloud Function
- * Merged into one function due to free tier limits.
+ * create-cashfree-order / verify-cashfree-payment / delete-account
+ * Appwrite Cloud Function — merged into one function due to free tier limits.
  */
 export default async ({ req, res, log, error }) => {
   let body;
@@ -10,6 +10,122 @@ export default async ({ req, res, log, error }) => {
     body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
   } catch (e) {
     return res.json({ success: false, error: 'Invalid JSON body' }, 400);
+  }
+
+  // --------------------------------------------------------------------------
+  // DELETE ACCOUNT (path: /delete-account)
+  // --------------------------------------------------------------------------
+  if (req.path === '/delete-account') {
+    const { userId } = body;
+    if (!userId) {
+      return res.json({ success: false, error: 'Missing userId' }, 400);
+    }
+
+    const client = new Client()
+      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
+      .setKey(process.env.APPWRITE_API_KEY);
+
+    const db = new Databases(client);
+    const users = new Users(client);
+
+    const DB_ID = process.env.DB_ID || 'any_khata_db';
+    const COL_BUSINESSES = process.env.COL_BUSINESSES || 'businesses';
+    const COL_CUSTOMERS = process.env.COL_CUSTOMERS || 'customers';
+    const COL_DAY_LOGS = process.env.COL_DAY_LOGS || 'day_logs';
+    const COL_ADS = process.env.COL_ADS || 'ads';
+    const COL_SUBSCRIPTIONS = process.env.COL_SUBSCRIPTIONS || 'subscriptions';
+
+    log(`[delete-account] Starting account deletion for userId: ${userId}`);
+
+    try {
+      // 1. Find all businesses owned by this user
+      const businessRes = await db.listDocuments(DB_ID, COL_BUSINESSES, [
+        Query.equal('owner_id', userId),
+        Query.limit(100),
+      ]);
+      const businessIds = businessRes.documents.map(b => b.$id);
+      log(`[delete-account] Found ${businessIds.length} business(es)`);
+
+      // 2. Soft-delete all day_logs for each business
+      for (const bizId of businessIds) {
+        let hasMore = true;
+        while (hasMore) {
+          const logBatch = await db.listDocuments(DB_ID, COL_DAY_LOGS, [
+            Query.equal('business_id', bizId),
+            Query.equal('is_deleted', false),
+            Query.limit(100),
+          ]);
+          for (const doc of logBatch.documents) {
+            await db.updateDocument(DB_ID, COL_DAY_LOGS, doc.$id, { is_deleted: true });
+          }
+          hasMore = logBatch.documents.length === 100;
+        }
+      }
+      log(`[delete-account] Soft-deleted day_logs`);
+
+      // 3. Soft-delete all customers for each business
+      for (const bizId of businessIds) {
+        let hasMore = true;
+        while (hasMore) {
+          const custBatch = await db.listDocuments(DB_ID, COL_CUSTOMERS, [
+            Query.equal('business_id', bizId),
+            Query.equal('is_deleted', false),
+            Query.limit(100),
+          ]);
+          for (const doc of custBatch.documents) {
+            await db.updateDocument(DB_ID, COL_CUSTOMERS, doc.$id, { is_deleted: true });
+          }
+          hasMore = custBatch.documents.length === 100;
+        }
+      }
+      log(`[delete-account] Soft-deleted customers`);
+
+      // 4. Soft-delete all businesses
+      for (const biz of businessRes.documents) {
+        await db.updateDocument(DB_ID, COL_BUSINESSES, biz.$id, { is_deleted: true });
+      }
+      log(`[delete-account] Soft-deleted businesses`);
+
+      // 5. Soft-delete all ads
+      let hasMoreAds = true;
+      while (hasMoreAds) {
+        const adBatch = await db.listDocuments(DB_ID, COL_ADS, [
+          Query.equal('user_id', userId),
+          Query.equal('is_deleted', false),
+          Query.limit(100),
+        ]);
+        for (const doc of adBatch.documents) {
+          await db.updateDocument(DB_ID, COL_ADS, doc.$id, { is_deleted: true });
+        }
+        hasMoreAds = adBatch.documents.length === 100;
+      }
+      log(`[delete-account] Soft-deleted ads`);
+
+      // 6. Expire all subscriptions
+      let hasMoreSubs = true;
+      while (hasMoreSubs) {
+        const subBatch = await db.listDocuments(DB_ID, COL_SUBSCRIPTIONS, [
+          Query.equal('user_id', userId),
+          Query.equal('status', 'active'),
+          Query.limit(100),
+        ]);
+        for (const doc of subBatch.documents) {
+          await db.updateDocument(DB_ID, COL_SUBSCRIPTIONS, doc.$id, { status: 'expired' });
+        }
+        hasMoreSubs = subBatch.documents.length === 100;
+      }
+      log(`[delete-account] Expired subscriptions`);
+
+      // 7. Hard-delete the auth user (the ONLY hard delete)
+      await users.delete(userId);
+      log(`[delete-account] Deleted auth user ${userId}`);
+
+      return res.json({ success: true });
+    } catch (err) {
+      error(`[delete-account] Error: ${err.message}`);
+      return res.json({ success: false, error: err.message }, 500);
+    }
   }
 
   if (req.path === '/verify') {

@@ -297,4 +297,6 @@ export default {
     'App Updates': 'App Updates',
     'News about new features and improvements': 'News about new features and improvements',
     'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.': 'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.',
+    'No customers found': 'No customers found',
+    'No entries for this customer': 'No entries for this customer',
   } as const;

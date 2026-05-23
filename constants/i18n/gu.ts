@@ -299,4 +299,6 @@ export default {
     'App Updates': 'એપ અપડેટ',
     'News about new features and improvements': 'નવી સુવિધાઓ અને સુધારા વિશે સમાચાર',
     'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.': 'સૂચના પ્રાધાન્યતાઓ આ ઉપકરણ પર સ્થાનિક રીતે સાચવવામાં આવે છે. સિસ્ટમ-સ્તરની સૂચના પરવાનગી સંચાલિત કરવા માટે, ઉપકરણ સેટિંગ્સ → Any Khata → સૂચનાઓ પર જાઓ.',
+    'No customers found': 'કોઈ ગ્રાહકો મળ્યા નથી',
+    'No entries for this customer': 'આ ગ્રાહક માટે કોઈ નોંધ નથી',
   } as const;
