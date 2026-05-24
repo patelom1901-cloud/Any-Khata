@@ -115,18 +115,24 @@ async function main() {
   console.log("");
 
   // ─── Step 1: Create Database ──────────────────────────
-  console.log("📦 Step 1: Creating Database...");
+  console.log("📦 Step 1: Checking/Creating Database...");
   try {
-    const db = await databases.create("any_khata_db", "any_khata_db");
+    const db = await databases.get("any_khata_db");
     results.databaseId = db.$id;
-    console.log(`  ✅ Database created: any_khata_db (${db.$id})\n`);
-  } catch (err) {
-    if (err.code === 409) {
-      console.log("  ⚠️  Database already exists. Using existing.\n");
-      results.databaseId = "any_khata_db";
-    } else {
-      console.error(`  ❌ Failed to create database: ${err.message}`);
-      process.exit(1);
+    console.log(`  ✅ Database exists: any_khata_db (${db.$id})\n`);
+  } catch (getErr) {
+    try {
+      const db = await databases.create("any_khata_db", "any_khata_db");
+      results.databaseId = db.$id;
+      console.log(`  ✅ Database created: any_khata_db (${db.$id})\n`);
+    } catch (err) {
+      if (err.code === 409) {
+        console.log("  ⚠️  Database already exists. Using existing.\n");
+        results.databaseId = "any_khata_db";
+      } else {
+        console.error(`  ❌ Failed to create database: ${err.message}`);
+        process.exit(1);
+      }
     }
   }
 
