@@ -44,6 +44,7 @@ export const getCustomer = async (customerId: string): Promise<Customer | null> 
     return {
       customerId: (doc as any).$id,
       businessId: (doc as any).business_id,
+      ownerId: (doc as any).owner_id,
       name: (doc as any).name,
       phone: (doc as any).phone,
       linkedUserId: (doc as any).linked_user_id,

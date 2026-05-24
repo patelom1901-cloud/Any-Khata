@@ -18,6 +18,10 @@ interface AuthState {
   setHasBusiness: (val: boolean) => void;
   selectedLanguage: Locale;
   setSelectedLanguage: (lang: Locale) => void;
+  pendingCount: number;
+  isSyncing: boolean;
+  setPendingCount: (count: number) => void;
+  setIsSyncing: (isSyncing: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,6 +33,8 @@ export const useAuthStore = create<AuthState>()(
       hasBusiness: false,
       isSubscribed: false,
       selectedLanguage: 'en',
+      pendingCount: 0,
+      isSyncing: false,
 
       setIsSubscribed: (isSubscribed) => set({ isSubscribed }),
       setHasBusiness: (hasBusiness) => set({ hasBusiness }),
@@ -59,6 +65,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setSelectedLanguage: (selectedLanguage) => set({ selectedLanguage }),
+      setPendingCount: (pendingCount) => set({ pendingCount }),
+      setIsSyncing: (isSyncing) => set({ isSyncing }),
     }),
     {
       name: 'auth-storage',

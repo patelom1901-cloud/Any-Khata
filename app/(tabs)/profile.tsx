@@ -25,6 +25,8 @@ import { useBusinessStore } from '../../store/businessStore';
 import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveSubscription, getBusinessByOwner, getAdsByUserId } from '../../lib/database';
 import { clearCachedUser } from '../../lib/auth';
 import { deleteUserAccount, createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
+import { getFailedEntries, resetEntryForRetry, discardFailedEntry, PendingEntry } from '../../lib/offlineQueue';
+import { runSync } from '../../lib/syncWorker';
 import { FEATURES } from '../../constants/config';
 import type { Locale } from '../../constants/i18n/index';
 import { useTranslation } from "../../hooks/useTranslation";
@@ -52,9 +54,11 @@ export default function ProfileScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showSyncIssuesModal, setShowSyncIssuesModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [subDates, setSubDates] = useState<{ started: string; expires: string } | null>(null);
   const [activeAds, setActiveAds] = useState<Ad[]>([]);
+  const [failedEntries, setFailedEntries] = useState<PendingEntry[]>([]);
 
   // Avatar Logic
   const avatarUrl = useMemo(() => {
@@ -62,9 +66,16 @@ export default function ProfileScreen() {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=C9883A&color=fff&size=128&bold=true`;
   }, [user]);
 
+  const handleShowSyncIssues = async () => {
+    const entries = await getFailedEntries();
+    setFailedEntries(entries);
+    setShowSyncIssuesModal(true);
+  };
+
   const SETTINGS_ITEMS = [
     { id: '1', label: t('profile.settings.notifications'), icon: 'notifications-none', onPress: () => router.push('/notifications' as any) },
     { id: '2', label: t('profile.settings.language'), icon: 'language', onPress: () => setShowLanguageModal(true) },
+    { id: 'sync', label: t('sync.syncIssues') || 'Sync Issues', icon: 'sync-problem', onPress: handleShowSyncIssues },
     { id: '3', label: t('profile.settings.help_support'), icon: 'help-outline', onPress: () => Alert.alert(t('profile.settings.help_support'), t('profile.support_email_msg'), [{ text: t('common.ok') }]) },
     { id: '4', label: t('profile.settings.privacy_policy'), icon: 'security', onPress: () => router.push('/privacy' as any) },
     { id: '5', label: t('profile.settings.terms_of_service'), icon: 'description', onPress: () => router.push('/terms' as any) },
@@ -452,6 +463,56 @@ export default function ProfileScreen() {
                 )}
               </TouchableOpacity>
             ))}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sync Issues Modal */}
+      <Modal visible={showSyncIssuesModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.sheetContent, { maxHeight: '80%' }]}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{t('sync.syncIssues') || 'Sync Issues'}</Text>
+              <TouchableOpacity onPress={() => setShowSyncIssuesModal(false)}>
+                <MaterialIcons name="close" size={24} color={ThemeColors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ paddingHorizontal: 20 }}>
+              {failedEntries.length === 0 ? (
+                <Text style={{ textAlign: 'center', padding: 20, color: ThemeColors.textSecondary }}>
+                  {t('sync.noSyncIssues') || 'No sync issues. All entries are up to date.'}
+                </Text>
+              ) : (
+                failedEntries.map(entry => (
+                  <View key={entry.id} style={{ padding: 16, backgroundColor: '#FFF5F4', borderRadius: 12, marginBottom: 12 }}>
+                    <Text style={{ fontFamily: Fonts.bold, color: ThemeColors.textPrimary }}>
+                      {new Date(entry.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                    <Text style={{ fontFamily: Fonts.regular, color: entry.type === 'gave' ? ThemeColors.creditRed : ThemeColors.paymentGreen, marginVertical: 4 }}>
+                      ₹{entry.amount} - {entry.type === 'gave' ? 'Gave' : 'Got'}
+                    </Text>
+                    <Text style={{ fontFamily: Fonts.regular, fontSize: 12, color: ThemeColors.creditRed }}>
+                      {entry.error_message?.substring(0, 60)}
+                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 12 }}>
+                      <TouchableOpacity onPress={async () => {
+                        await discardFailedEntry(entry.id);
+                        handleShowSyncIssues();
+                      }}>
+                        <Text style={{ color: ThemeColors.textSecondary, fontFamily: Fonts.semibold }}>{t('sync.discardSyncEntry') || 'Discard'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={async () => {
+                        await resetEntryForRetry(entry.id);
+                        runSync();
+                        handleShowSyncIssues();
+                      }}>
+                        <Text style={{ color: ThemeColors.brandLight, fontFamily: Fonts.semibold }}>{t('sync.retrySyncEntry') || 'Retry'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>

@@ -39,6 +39,7 @@ export interface Business {
 export interface Customer {
   customerId: string;
   businessId: string;
+  ownerId?: string;
   name: string;
   phone: string;
   linkedUserId?: string;

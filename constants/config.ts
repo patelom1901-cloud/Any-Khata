@@ -10,7 +10,6 @@ export const FEATURES = {
   CUSTOMER_PHONE_LINK: true,
   ENABLE_PAYMENTS: true,
 
-
   // v2 — future (disabled)
   MULTI_BUSINESS: false,      // one owner, multiple businesses
   EXPORT_PDF: false,           // export month as PDF

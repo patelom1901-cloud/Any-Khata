@@ -15,6 +15,21 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
+import { initOfflineDB, getPendingCount } from '../lib/offlineQueue';
+import { startSyncListener, runSync } from '../lib/syncWorker';
+import { useAuthStore } from '../store/authStore';
+import NetInfo from '@react-native-community/netinfo';
+
+// Suppress Appwrite SDK network errors from RN's global handler.
+// Our code catches these — this prevents the duplicate alert.
+const originalHandler = ErrorUtils.getGlobalHandler();
+ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
+  if (error?.message?.includes('Network request failed')) {
+    // Silently ignore — our try/catch handles these
+    return;
+  }
+  originalHandler(error, isFatal);
+});
 
 // Keep the native splash visible until we explicitly hide it
 SplashScreen.preventAutoHideAsync();
@@ -34,6 +49,41 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
+
+  useEffect(() => {
+    let unsubscribeSync: (() => void) | undefined;
+    
+    const initApp = async () => {
+      await initOfflineDB();
+      const count = await getPendingCount();
+      useAuthStore.getState().setPendingCount(count);
+      
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected) {
+        setTimeout(() => {
+          runSync()
+            .then((res: any) => {
+              if (res && res.synced > 0) {
+                getPendingCount().then(count => 
+                  useAuthStore.getState().setPendingCount(count)
+                );
+              }
+            })
+            .catch((e: any) => {
+              console.log('[LAYOUT] initial runSync failed:', e?.message);
+            });
+        }, 5000);
+      }
+      
+      unsubscribeSync = startSyncListener();
+    };
+    
+    initApp();
+    
+    return () => {
+      if (unsubscribeSync) unsubscribeSync();
+    };
+  }, []);
 
   if (!fontsLoaded) return null;
 

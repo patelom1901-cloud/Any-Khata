@@ -115,6 +115,11 @@ export default function AddEntryScreen() {
         businessId = fetchedBusiness.businessId;
       }
 
+      if (!user || (!user.userId && !(user as any).$id)) {
+        Alert.alert(t(`Error`), t(`User not authenticated`));
+        setLoading(false);
+        return;
+      }
       const parsedQuantity = quantity.trim() ? parseFloat(quantity) : undefined;
       const userId = user.userId || (user as any).$id;
       const dayLog = await getOrCreateDayLog(businessId, customerId, userId);

@@ -95,6 +95,13 @@ export default function StartupAnimation({ onFinish }: { onFinish: () => void })
     }, 1200);
   };
 
+  const logoAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: logoOpacity.value,
+      transform: [{ scale: logoScale.value }],
+    };
+  });
+
   return (
     <View style={styles.container}>
       {!showLogo && Array.from({ length: PARTICLE_COUNT }).map((_, i) => (
@@ -106,7 +113,7 @@ export default function StartupAnimation({ onFinish }: { onFinish: () => void })
       ))}
       
       {showLogo && (
-        <Animated.View style={[styles.logoContainer, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
+        <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
           <Image 
             source={require('../../assets/Any Khata logo.png')} 
             style={styles.logo} 

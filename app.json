@@ -22,12 +22,14 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anykhata.app"
+      "package": "com.anykhata.app",
+      "permissions": []
     },
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sqlite"
     ]
   }
 }

@@ -262,6 +262,20 @@ export default {
     'Update the transaction details.': 'વ્યવહારની વિગત અપડેટ કરો.',
 
     'home.recent_customers': 'તાજેતરના ગ્રાહકો',
+    'home.top_overdue': 'સૌથી વધુ બાકી',
+    'festivalMakarSankranti': 'મકર સંક્રાંતિ',
+    'festivalMahaShivaratri': 'મહાશિવરાત્રી',
+    'festivalHoli': 'હોળી',
+    'festivalRakshaBandhan': 'રક્ષાબંધન',
+    'festivalJanmashtami': 'જન્માષ્ટમી',
+    'festivalGaneshChaturthi': 'ગણેશ ચતુર્થી',
+    'festivalNavratri': 'નવરાત્રી',
+    'festivalDussehra': 'દશેરા',
+    'festivalDiwali': 'દિવાળી',
+    'festivalGuruNanakJayanti': 'ગુરુ નાનક જયંતી',
+    'festivalChristmas': 'નાતાલ',
+    'festivalNewYear': 'નવું વર્ષ',
+    'home.festival_reminder': '🪔 {FestivalName} આવે છે! ગ્રાહકોને હિસાબ ચૂકવવા યાદ કરાવો.',
 
     'GAVE': 'આપ્યું',
     'GOT': 'મળ્યું',
@@ -301,4 +315,19 @@ export default {
     'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.': 'સૂચના પ્રાધાન્યતાઓ આ ઉપકરણ પર સ્થાનિક રીતે સાચવવામાં આવે છે. સિસ્ટમ-સ્તરની સૂચના પરવાનગી સંચાલિત કરવા માટે, ઉપકરણ સેટિંગ્સ → Any Khata → સૂચનાઓ પર જાઓ.',
     'No customers found': 'કોઈ ગ્રાહકો મળ્યા નથી',
     'No entries for this customer': 'આ ગ્રાહક માટે કોઈ નોંધ નથી',
+
+    'whatsappShareStatementTitle': 'હિસાબ શેર કરો',
+    'whatsappSendReminderTitle': 'રિમાઇન્ડર મોકલો',
+    'whatsappNotFoundTitle': 'WhatsApp મળ્યું નથી',
+    'whatsappNotFoundMessage': 'તેને બદલે ક્લિપબોર્ડ પર સંદેશ કૉપિ કરવામાં આવ્યો.',
+    'whatsappStatementTemplate': '📒 AnyKhata હિસાબ\nગ્રાહક: {customerName}\nબાકી: ₹{balance}\n\nછેલ્લી નોંધ:\n{last5Entries}\n\nહિસાબ ચૂકવવા સંપર્ક કરો: {businessOwnerName}',
+    'whatsappReminderTemplate': '🙏 નમસ્તે {customerName}, AnyKhata માં તમારા ₹{balance} બાકી છે.\nઅનુકૂળ હોય ત્યારે ચૂકવશો. આભાર! — {businessOwnerName}',
+
+    'sync.savedOfflineToast': 'સાચવ્યું — ઓનલાઈન થવા પર સિંક થશે',
+    'sync.pendingCount': '{count} બાકી',
+    'sync.syncIssues': 'સિંક સમસ્યાઓ',
+    'sync.noSyncIssues': 'કોઈ સિંક સમસ્યા નથી. બધી એન્ટ્રીઓ અપડેટ છે.',
+    'sync.discardSyncEntry': 'કાઢી નાખો',
+    'sync.retrySyncEntry': 'ફરી પ્રયાસ કરો',
+
   } as const;

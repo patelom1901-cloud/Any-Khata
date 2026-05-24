@@ -15,11 +15,14 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   StatusBar,
+  ToastAndroid,
 } from 'react-native';
+import { ID } from 'react-native-appwrite';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp, FadeInRight, Layout } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -29,7 +32,9 @@ import {
   upsertTodayDayLog,
   deleteCustomer,
 } from '../../lib/database';
-import { formatRelativeDate } from '../../utils/dateUtils';
+import { addPendingEntry, getPendingCount } from '../../lib/offlineQueue';
+import NetInfo from '@react-native-community/netinfo';
+import { formatRelativeDate, getTodayString } from '../../utils/dateUtils';
 import { useTranslation } from "../../hooks/useTranslation";
 import { WavyHeader } from '../../components/ui/WavyHeader';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
@@ -71,8 +76,15 @@ export default function CustomerLedgerScreen() {
 
   // ── Fetch day_logs ────────────────────────────────────────────────────────
   const fetchDayLogs = useCallback(async (customerId: string) => {
-    const logs = await getDayLogsForCustomer(undefined, customerId);
-    setDayLogs(logs);
+    try {
+      const logs = await getDayLogsForCustomer(undefined, customerId);
+      setDayLogs(logs);
+      await AsyncStorage.setItem(`@daylogs_${customerId}`, JSON.stringify(logs));
+    } catch (err) {
+      console.log('[fetchDayLogs] Failed to fetch, falling back to cache');
+      const cached = await AsyncStorage.getItem(`@daylogs_${customerId}`);
+      if (cached) setDayLogs(JSON.parse(cached));
+    }
   }, []);
 
   // ── Initial data load ─────────────────────────────────────────────────────
@@ -84,13 +96,13 @@ export default function CustomerLedgerScreen() {
 
       const customerDoc = await getCustomer(id);
       if (!customerDoc) {
-        setError(t(`Customer not found.`));
-        return;
+        throw new Error(t(`Customer not found.`));
       }
       setCustomer(customerDoc);
+      await AsyncStorage.setItem(`@customer_${id}`, JSON.stringify(customerDoc));
 
-      const linkedUserId: string = (customerDoc as any).linked_user_id ?? '';
-      const ownerId: string = (customerDoc as any).owner_id ?? '';
+      const linkedUserId: string = customerDoc.linkedUserId ?? '';
+      const ownerId: string = customerDoc.ownerId ?? '';
 
       if (user.userId === linkedUserId) {
         setIsReadOnly(true);
@@ -99,7 +111,7 @@ export default function CustomerLedgerScreen() {
         setIsReadOnly(false);
         setIsOwner(true);
       } else {
-        const business = await getBusiness((customerDoc as any).business_id ?? '');
+        const business = await getBusiness(customerDoc.businessId ?? '');
         const bizOwnerId: string = (business as any)?.owner_id ?? '';
         const ownerConfirmed = user.userId === bizOwnerId;
         setIsReadOnly(!ownerConfirmed);
@@ -108,7 +120,30 @@ export default function CustomerLedgerScreen() {
 
       await fetchDayLogs(id);
     } catch (err: any) {
-      setError(err?.message ?? t(`Failed to load customer data.`));
+      console.log('[loadScreen] Failed to load, attempting cache fallback');
+      const cachedCustomer = await AsyncStorage.getItem(`@customer_${id}`);
+      if (cachedCustomer) {
+        const parsedCustomer = JSON.parse(cachedCustomer);
+        setCustomer(parsedCustomer);
+        
+        const linkedUserId: string = parsedCustomer.linkedUserId ?? '';
+        const ownerId: string = parsedCustomer.ownerId ?? '';
+        if (user.userId === linkedUserId) {
+          setIsReadOnly(true);
+          setIsOwner(false);
+        } else if (user.userId === ownerId) {
+          setIsReadOnly(false);
+          setIsOwner(true);
+        } else {
+          // If we fail and it's not our customer, fallback to read only
+          setIsReadOnly(true);
+          setIsOwner(false);
+        }
+        
+        await fetchDayLogs(id);
+      } else {
+        setError(err?.message ?? t(`Failed to load customer data.`));
+      }
     } finally {
       setLoading(false);
     }
@@ -118,10 +153,82 @@ export default function CustomerLedgerScreen() {
     loadScreen();
   }, [loadScreen]);
 
+  // ── Offline queue helper ──────────────────────────────────────────────────
+  const queueOfflineEntry = async (
+    dbType: 'got' | 'gave',
+    parsedAmount: number,
+    ownerId: string,
+    businessId: string,
+  ) => {
+    console.log('[QUEUE] queueOfflineEntry called');
+    const d = new Date();
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const newEntryId = ID.unique();
+    const today = getTodayString();
+
+    await addPendingEntry({
+      id: newEntryId,
+      customer_id: customer.customerId,
+      business_id: businessId,
+      user_id: ownerId,
+      amount: parsedAmount,
+      type: dbType,
+      note: addEntryDesc.trim() || 'Entry',
+      date: today,
+      created_at: new Date().toISOString(),
+    });
+
+    const count = await getPendingCount();
+    useAuthStore.getState().setPendingCount(count);
+
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(t('sync.savedOfflineToast') || 'Saved — will sync when online', ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', t('sync.savedOfflineToast') || 'Saved — will sync when online');
+    }
+
+    // Optimistically update local UI
+    const refreshed = { ...customer };
+    refreshed.balance = dbType === 'gave' ? refreshed.balance + parsedAmount : refreshed.balance - parsedAmount;
+    setCustomer(refreshed);
+
+    setDayLogs(prevLogs => {
+      const newEntry = {
+        id: newEntryId,
+        description: addEntryDesc.trim() || 'Entry',
+        amount: parsedAmount,
+        type: dbType,
+        time: timeStr,
+        note: addEntryDesc.trim() || 'Entry',
+        timestamp: new Date().toISOString(),
+      };
+
+      const logs = [...prevLogs];
+      const todayLogIndex = logs.findIndex(log => log.date === today);
+      if (todayLogIndex >= 0) {
+        const updatedLog = { ...logs[todayLogIndex] };
+        updatedLog.entries = [...updatedLog.entries, newEntry];
+        if (dbType === 'gave') {
+          updatedLog.dayTotal += parsedAmount;
+        }
+        logs[todayLogIndex] = updatedLog;
+      } else {
+        logs.unshift({
+          dayLogId: 'offline_mock_' + newEntryId,
+          date: today,
+          is_locked: false,
+          entries: [newEntry],
+          dayTotal: dbType === 'gave' ? parsedAmount : 0,
+        });
+      }
+      return logs;
+    });
+  };
+
   const handleSaveEntry = async () => {
     const parsedAmount = parseFloat(addEntryAmount);
     if (!addEntryAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert(t(`Enter Amount`), t(`Please enter a valid amount.`));
+      Alert.alert(t('Enter Amount'), t('Please enter a valid amount.'));
       return;
     }
     if (!customer) return;
@@ -129,29 +236,55 @@ export default function CustomerLedgerScreen() {
     setSaving(true);
     try {
       const dbType: 'got' | 'gave' = entryType === 'payment' ? 'got' : 'gave';
+      const ownerId = customer.ownerId ?? user?.userId;
+      const businessId = customer.businessId;
 
-      const ownerId = (customer as any).owner_id ?? '';
-      await upsertTodayDayLog(
-        customer.$id,
-        (customer as any).business_id ?? '',
-        {
-          description: addEntryDesc.trim() || 'Entry',
-          amount: parsedAmount,
-          type: dbType,
-        },
-        ownerId
-      );
+      if (!ownerId || !businessId) {
+        throw new Error("Cannot queue entry: owner ID or business ID missing");
+      }
 
-      const refreshed = await getCustomer(customer.$id);
-      if (refreshed) setCustomer(refreshed);
-      await fetchDayLogs(customer.$id);
+      // Check network — go straight to offline queue if not online.
+      // Use strict === true check (null means unknown = treat as offline)
+      let isOnline = false;
+      try {
+        const netState = await NetInfo.fetch();
+        isOnline = netState.isConnected === true &&
+                   netState.isInternetReachable === true;
+      } catch {
+        isOnline = false;
+      }
+
+      if (!isOnline) {
+        // Offline — queue directly, never attempt Appwrite fetch()
+        await queueOfflineEntry(dbType, parsedAmount, ownerId, businessId);
+      } else {
+        // Online — attempt Appwrite, fall back to queue on any failure
+        try {
+          await upsertTodayDayLog(
+            customer.customerId,
+            customer.businessId ?? '',
+            {
+              description: addEntryDesc.trim() || 'Entry',
+              amount: parsedAmount,
+              type: dbType,
+            },
+            ownerId
+          );
+          const refreshed = await getCustomer(customer.customerId);
+          if (refreshed) setCustomer(refreshed);
+          await fetchDayLogs(customer.customerId);
+        } catch {
+          // Online but Appwrite failed (connection dropped mid-request)
+          await queueOfflineEntry(dbType, parsedAmount, ownerId, businessId);
+        }
+      }
 
       setShowAddEntry(false);
       setAddEntryAmount('');
       setAddEntryDesc('');
       setEntryType('credit');
     } catch (err: any) {
-      Alert.alert(t(`Error`), err?.message ?? t(`Failed to save entry. Please try again.`));
+      Alert.alert(t('Error'), err?.message ?? t('Failed to save entry.'));
     } finally {
       setSaving(false);
     }
@@ -171,7 +304,7 @@ export default function CustomerLedgerScreen() {
             if (!customer) return;
             setSaving(true);
             try {
-              await deleteCustomer(customer.$id);
+              await deleteCustomer(customer.customerId);
               router.replace('/(tabs)/khata');
             } catch (err: any) {
               Alert.alert(t(`Error`), err?.message ?? t(`Failed to remove customer. Please try again.`));

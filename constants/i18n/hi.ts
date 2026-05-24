@@ -258,6 +258,20 @@ export default {
     'Update the transaction details.': 'लेनदेन विवरण अपडेट करें।',
 
     'home.recent_customers': 'हाल के ग्राहक',
+    'home.top_overdue': 'सबसे ज़्यादा बकाया',
+    'festivalMakarSankranti': 'मकर संक्रांति',
+    'festivalMahaShivaratri': 'महाशिवरात्रि',
+    'festivalHoli': 'होली',
+    'festivalRakshaBandhan': 'रक्षाबंधन',
+    'festivalJanmashtami': 'जन्माष्टमी',
+    'festivalGaneshChaturthi': 'गणेश चतुर्थी',
+    'festivalNavratri': 'नवरात्रि',
+    'festivalDussehra': 'दशहरा',
+    'festivalDiwali': 'दिवाली',
+    'festivalGuruNanakJayanti': 'गुरु नानक जयंती',
+    'festivalChristmas': 'क्रिसमस',
+    'festivalNewYear': 'नया साल',
+    'home.festival_reminder': '🪔 {FestivalName} आ रहा है! ग्राहकों को बकाया चुकाने की याद दिलाएं।',
 
     'GAVE': 'दिया',
     'GOT': 'मिला',
@@ -302,4 +316,19 @@ export default {
     'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.': 'सूचना प्राथमिकताएं इस डिवाइस पर स्थानीय रूप से सहेजी जाती हैं। सिस्टम-स्तर की सूचना अनुमतियां प्रबंधित करने के लिए, डिवाइस सेटिंग्स → Any Khata → सूचनाएं पर जाएं।',
     'No entries for this customer': 'इस ग्राहक के लिए कोई एंट्री नहीं',
     'No customers found': 'कोई ग्राहक नहीं मिला',
+
+    'whatsappShareStatementTitle': 'विवरण साझा करें',
+    'whatsappSendReminderTitle': 'रिमाइंडर भेजें',
+    'whatsappNotFoundTitle': 'WhatsApp नहीं मिला',
+    'whatsappNotFoundMessage': 'इसके बजाय क्लिपबोर्ड पर संदेश कॉपी किया गया।',
+    'whatsappStatementTemplate': '📒 AnyKhata हिसाब\nग्राहक: {customerName}\nबकाया: ₹{balance}\n\nहाल की एंट्री:\n{last5Entries}\n\nहिसाब चुकाने के लिए संपर्क करें: {businessOwnerName}',
+    'whatsappReminderTemplate': '🙏 नमस्ते {customerName}, AnyKhata में आपके ₹{balance} बकाया हैं\nसुविधानुसार चुकाएं। धन्यवाद! — {businessOwnerName}',
+
+    'sync.savedOfflineToast': 'सहेजा गया — ऑनलाइन होने पर सिंक होगा',
+    'sync.pendingCount': '{count} लंबित',
+    'sync.syncIssues': 'सिंक समस्याएं',
+    'sync.noSyncIssues': 'कोई सिंक समस्या नहीं। सभी प्रविष्टियां अद्यतित हैं।',
+    'sync.discardSyncEntry': 'हटाएं',
+    'sync.retrySyncEntry': 'पुनः प्रयास करें',
+
   } as const;

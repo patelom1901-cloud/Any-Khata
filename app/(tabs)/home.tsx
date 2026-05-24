@@ -22,6 +22,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { useAuthStore } from '../../store/authStore';
 import { getBusinessByOwner, getCustomersByBusiness, getMyLinkedKhatas, createCustomer, deleteCustomer } from '../../lib/database';
 import { DraggableDeletionWrapper } from '../../components/DraggableDeletionWrapper';
@@ -60,9 +62,55 @@ const getFilters = (t: any) => [
   { key: 'recent',  label: t('home.filter.recent') },
 ];
 
+const FESTIVALS = [
+  // 2026
+  { name: 'makarsankranti', date: '2026-01-14', nameKey: 'festivalMakarSankranti' },
+  { name: 'mahashivaratri', date: '2026-02-15', nameKey: 'festivalMahaShivaratri' },
+  { name: 'holi', date: '2026-03-04', nameKey: 'festivalHoli' },
+  { name: 'rakshabandhan', date: '2026-08-28', nameKey: 'festivalRakshaBandhan' },
+  { name: 'janmashtami', date: '2026-09-04', nameKey: 'festivalJanmashtami' },
+  { name: 'ganeshchaturthi', date: '2026-09-14', nameKey: 'festivalGaneshChaturthi' },
+  { name: 'navratri', date: '2026-10-11', nameKey: 'festivalNavratri' },
+  { name: 'dussehra', date: '2026-10-20', nameKey: 'festivalDussehra' },
+  { name: 'diwali', date: '2026-11-08', nameKey: 'festivalDiwali' },
+  { name: 'gurunanakjayanti', date: '2026-11-24', nameKey: 'festivalGuruNanakJayanti' },
+  { name: 'christmas', date: '2026-12-25', nameKey: 'festivalChristmas' },
+
+  // 2027
+  { name: 'newyear', date: '2027-01-01', nameKey: 'festivalNewYear' },
+  { name: 'makarsankranti', date: '2027-01-14', nameKey: 'festivalMakarSankranti' },
+  { name: 'mahashivaratri', date: '2027-03-06', nameKey: 'festivalMahaShivaratri' },
+  { name: 'holi', date: '2027-03-22', nameKey: 'festivalHoli' },
+  { name: 'rakshabandhan', date: '2027-08-17', nameKey: 'festivalRakshaBandhan' },
+  { name: 'janmashtami', date: '2027-08-25', nameKey: 'festivalJanmashtami' },
+  { name: 'ganeshchaturthi', date: '2027-09-04', nameKey: 'festivalGaneshChaturthi' },
+  { name: 'navratri', date: '2027-09-30', nameKey: 'festivalNavratri' },
+  { name: 'dussehra', date: '2027-10-09', nameKey: 'festivalDussehra' },
+  { name: 'diwali', date: '2027-10-29', nameKey: 'festivalDiwali' },
+  { name: 'gurunanakjayanti', date: '2027-11-14', nameKey: 'festivalGuruNanakJayanti' },
+  { name: 'christmas', date: '2027-12-25', nameKey: 'festivalChristmas' },
+
+  // 2028
+  { name: 'newyear', date: '2028-01-01', nameKey: 'festivalNewYear' },
+  { name: 'makarsankranti', date: '2028-01-15', nameKey: 'festivalMakarSankranti' },
+  { name: 'mahashivaratri', date: '2028-02-23', nameKey: 'festivalMahaShivaratri' },
+  { name: 'holi', date: '2028-03-11', nameKey: 'festivalHoli' },
+  { name: 'rakshabandhan', date: '2028-08-05', nameKey: 'festivalRakshaBandhan' },
+  { name: 'janmashtami', date: '2028-08-13', nameKey: 'festivalJanmashtami' },
+  { name: 'ganeshchaturthi', date: '2028-08-23', nameKey: 'festivalGaneshChaturthi' },
+  { name: 'navratri', date: '2028-09-19', nameKey: 'festivalNavratri' },
+  { name: 'dussehra', date: '2028-09-27', nameKey: 'festivalDussehra' },
+  { name: 'diwali', date: '2028-10-17', nameKey: 'festivalDiwali' },
+  { name: 'gurunanakjayanti', date: '2028-11-02', nameKey: 'festivalGuruNanakJayanti' },
+  { name: 'christmas', date: '2028-12-25', nameKey: 'festivalChristmas' },
+
+  // 2029
+  { name: 'newyear', date: '2029-01-01', nameKey: 'festivalNewYear' },
+];
+
 const HomeScreen = () => {
   const { t } = useTranslation();
-  const { user, hasBusiness } = useAuthStore();
+  const { user, hasBusiness, pendingCount, isSyncing } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState({ count: 0, total: 0 });
@@ -98,6 +146,44 @@ const HomeScreen = () => {
 
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [upcomingFestival, setUpcomingFestival] = useState<{name: string, date: string, nameKey: string} | null>(null);
+
+  useEffect(() => {
+    const checkFestival = async () => {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
+      let foundFestival = null;
+      for (const fest of FESTIVALS) {
+        const festDate = new Date(fest.date);
+        festDate.setHours(0,0,0,0);
+        const diffTime = festDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 0 && diffDays <= 7) {
+          foundFestival = fest;
+          break;
+        }
+      }
+      
+      if (foundFestival) {
+        const year = foundFestival.date.split('-')[0];
+        const dismissed = await AsyncStorage.getItem(`festival_dismissed_${foundFestival.name}_${year}`);
+        if (dismissed !== 'true') {
+          setUpcomingFestival(foundFestival);
+        }
+      }
+    };
+    checkFestival();
+  }, []);
+
+  const dismissFestival = async () => {
+    if (upcomingFestival) {
+      const year = upcomingFestival.date.split('-')[0];
+      await AsyncStorage.setItem(`festival_dismissed_${upcomingFestival.name}_${year}`, 'true');
+      setUpcomingFestival(null);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -122,13 +208,71 @@ const HomeScreen = () => {
     setError(null);
     try {
       const userId = user.userId || (user as any).$id;
+      
+      // Check network status
+      const netState = await NetInfo.fetch();
+      const isOnline = netState.isConnected === true && netState.isInternetReachable === true;
+      
       if (hasBusiness) {
         // Owner Data
+        if (!isOnline) {
+          // Offline - load from cache
+          console.log('[fetchHomeData] Offline - loading from cache');
+          const cachedBusiness = await AsyncStorage.getItem(`@business_${userId}`);
+          const cachedCustomers = await AsyncStorage.getItem(`@customers_${userId}`);
+          
+          if (cachedBusiness && cachedCustomers) {
+            const business = JSON.parse(cachedBusiness);
+            const customersList = JSON.parse(cachedCustomers);
+            
+            const currentBusinessId = (business as any).$id || business.businessId;
+            setBusinessId(currentBusinessId);
+            
+            const totalBalance = customersList.reduce((sum: number, c: any) => sum + (c.balance || 0), 0);
+            setSummary({ count: customersList.length, total: totalBalance });
+            
+            const mappedCustomers = customersList.map((c: any, index: number) => {
+              const colors = [
+                { bg: Colors.primaryPale, text: Colors.primary },
+                { bg: Colors.successLight, text: Colors.success },
+                { bg: Colors.warningLight, text: Colors.warning },
+              ];
+              const style = colors[index % colors.length];
+              
+              return {
+                id: c.$id || c.customerId || index.toString(),
+                initials: c.name ? c.name.split(' ').map((n: string) => n.charAt(0)).join('').toUpperCase().substring(0, 2) : '??',
+                name: c.name || 'Unknown',
+                phone: c.phone || '',
+                balance: c.balance || c.totalDue || 0,
+                lastActivity: 'Active', 
+                avatarBg: style.bg,
+                avatarText: style.text,
+                isLinked: c.isLinked,
+                linkCode: c.linkCode,
+              };
+            });
+            setCustomers(mappedCustomers);
+          } else {
+            setBusinessId(null);
+            setSummary({ count: 0, total: 0 });
+            setCustomers([]);
+          }
+          setLastCursor(null);
+          setHasMoreCustomers(false);
+          return;
+        }
+        
+        // Online - fetch from Appwrite
         const business = await getBusinessByOwner(userId);
         if (business) {
           const currentBusinessId = (business as any).$id || business.businessId;
           setBusinessId(currentBusinessId);
           const customersList = await getCustomersByBusiness(currentBusinessId);
+          
+          // Cache the data
+          await AsyncStorage.setItem(`@business_${userId}`, JSON.stringify(business));
+          await AsyncStorage.setItem(`@customers_${userId}`, JSON.stringify(customersList));
           
           const totalBalance = customersList.reduce((sum, c) => sum + (c.balance || 0), 0);
           setSummary({ count: customersList.length, total: totalBalance });
@@ -171,13 +315,80 @@ const HomeScreen = () => {
         }
       } else {
         // Customer Data (Linked Khatas)
+        if (!isOnline) {
+          // Offline - load from cache
+          const cachedKhatas = await AsyncStorage.getItem(`@linked_khatas_${userId}`);
+          if (cachedKhatas) {
+            const linkedKhatas = JSON.parse(cachedKhatas);
+            const totalBalance = linkedKhatas.reduce((sum: number, k: any) => sum + (k.balance || 0), 0);
+            setSummary({ count: linkedKhatas.length, total: totalBalance });
+          } else {
+            setSummary({ count: 0, total: 0 });
+          }
+          setCustomers([]);
+          setBusinessId(null);
+          return;
+        }
+        
+        // Online - fetch from Appwrite
         const linkedKhatas = await getMyLinkedKhatas(userId);
+        
+        // Cache the data
+        await AsyncStorage.setItem(`@linked_khatas_${userId}`, JSON.stringify(linkedKhatas));
+        
         const totalBalance = linkedKhatas.reduce((sum, k) => sum + (k.balance || 0), 0);
         setSummary({ count: linkedKhatas.length, total: totalBalance });
         setCustomers([]);
         setBusinessId(null);
       }
     } catch (err: any) {
+      console.log('[fetchHomeData] Error:', err?.message);
+      // On error, try to load from cache
+      try {
+        const userId = user.userId || (user as any).$id;
+        if (hasBusiness) {
+          const cachedBusiness = await AsyncStorage.getItem(`@business_${userId}`);
+          const cachedCustomers = await AsyncStorage.getItem(`@customers_${userId}`);
+          
+          if (cachedBusiness && cachedCustomers) {
+            const business = JSON.parse(cachedBusiness);
+            const customersList = JSON.parse(cachedCustomers);
+            
+            const currentBusinessId = (business as any).$id || business.businessId;
+            setBusinessId(currentBusinessId);
+            
+            const totalBalance = customersList.reduce((sum: number, c: any) => sum + (c.balance || 0), 0);
+            setSummary({ count: customersList.length, total: totalBalance });
+            
+            const mappedCustomers = customersList.map((c: any, index: number) => {
+              const colors = [
+                { bg: Colors.primaryPale, text: Colors.primary },
+                { bg: Colors.successLight, text: Colors.success },
+                { bg: Colors.warningLight, text: Colors.warning },
+              ];
+              const style = colors[index % colors.length];
+              
+              return {
+                id: c.$id || c.customerId || index.toString(),
+                initials: c.name ? c.name.split(' ').map((n: string) => n.charAt(0)).join('').toUpperCase().substring(0, 2) : '??',
+                name: c.name || 'Unknown',
+                phone: c.phone || '',
+                balance: c.balance || c.totalDue || 0,
+                lastActivity: 'Active', 
+                avatarBg: style.bg,
+                avatarText: style.text,
+                isLinked: c.isLinked,
+                linkCode: c.linkCode,
+              };
+            });
+            setCustomers(mappedCustomers);
+            return; // Successfully loaded from cache, don't show error
+          }
+        }
+      } catch {
+        // Cache load failed, show error
+      }
+      
       Alert.alert(t('common.something_went_wrong'), t('common.please_try_again'));
       setError(t('home.load_failed'));
     } finally {
@@ -407,9 +618,23 @@ const HomeScreen = () => {
               <Text style={styles.headerTitle}>{t('common.app_name')}</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-              <Text style={styles.dateLabel}>
-                {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.dateLabel}>
+                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </Text>
+                {pendingCount > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12, backgroundColor: 'rgba(249, 115, 22, 0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                    {isSyncing ? (
+                      <ActivityIndicator size="small" color="#F97316" style={{ transform: [{ scale: 0.6 }] }} />
+                    ) : (
+                      <MaterialIcons name="cloud-upload" size={12} color="#F97316" style={{ marginRight: 4 }} />
+                    )}
+                    <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: '#F97316' }}>
+                      {t('sync.pendingCount')?.replace('{count}', pendingCount.toString()) || `${pendingCount} pending`}
+                    </Text>
+                  </View>
+                )}
+              </View>
               {searchVisible && (
                 <Animated.View entering={FadeInRight} style={{ flex: 1, marginLeft: 12 }}>
                   <TextInput
@@ -484,6 +709,29 @@ const HomeScreen = () => {
           </CardWrapper>
         </Animated.View>
 
+
+        {/* BANNER SECTION */}
+        {hasBusiness && upcomingFestival && (
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <View style={{
+              backgroundColor: '#F59E0B',
+              borderRadius: 12,
+              padding: 12,
+              marginHorizontal: 16,
+              marginTop: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <Text style={{ flex: 1, fontFamily: Fonts.semibold, fontSize: 13, color: '#FFF' }}>
+                {t('home.festival_reminder').replace('{FestivalName}', t(upcomingFestival.nameKey as any))}
+              </Text>
+              <TouchableOpacity onPress={dismissFestival} style={{ padding: 4 }}>
+                <MaterialIcons name="close" size={20} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
 
         {/* 3. RECENT CUSTOMERS SECTION */}
         {hasBusiness && (

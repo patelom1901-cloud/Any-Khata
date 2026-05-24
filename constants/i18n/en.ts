@@ -255,6 +255,20 @@ export default {
     'Contact Us': 'Contact Us',
 
     'home.recent_customers': 'Recent Customers',
+    'home.top_overdue': 'Top Overdue',
+    'festivalMakarSankranti': 'Makar Sankranti',
+    'festivalMahaShivaratri': 'Maha Shivaratri',
+    'festivalHoli': 'Holi',
+    'festivalRakshaBandhan': 'Raksha Bandhan',
+    'festivalJanmashtami': 'Janmashtami',
+    'festivalGaneshChaturthi': 'Ganesh Chaturthi',
+    'festivalNavratri': 'Navratri',
+    'festivalDussehra': 'Dussehra',
+    'festivalDiwali': 'Diwali',
+    'festivalGuruNanakJayanti': 'Guru Nanak Jayanti',
+    'festivalChristmas': 'Christmas',
+    'festivalNewYear': 'New Year',
+    'home.festival_reminder': '🪔 {FestivalName} is coming! Remind customers to settle dues.',
 
     'GAVE': 'Gave',
     'GOT': 'Got',
@@ -299,4 +313,19 @@ export default {
     'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.': 'Notification preferences are saved locally on this device. To manage system-level notification permissions, go to your device Settings → Any Khata → Notifications.',
     'No customers found': 'No customers found',
     'No entries for this customer': 'No entries for this customer',
+
+    'whatsappShareStatementTitle': 'Share Statement',
+    'whatsappSendReminderTitle': 'Send Reminder',
+    'whatsappNotFoundTitle': 'WhatsApp not found',
+    'whatsappNotFoundMessage': 'Message copied to clipboard instead.',
+    'whatsappStatementTemplate': '📒 AnyKhata Statement\nCustomer: {customerName}\nBalance: ₹{balance} due\n\nRecent entries:\n{last5Entries}\n\nTo settle, contact: {businessOwnerName}',
+    'whatsappReminderTemplate': '🙏 Hello {customerName}, you have ₹{balance} due in AnyKhata.\nPlease settle when convenient. Thank you! — {businessOwnerName}',
+
+    'sync.savedOfflineToast': 'Saved — will sync when online',
+    'sync.pendingCount': '{count} pending',
+    'sync.syncIssues': 'Sync Issues',
+    'sync.noSyncIssues': 'No sync issues. All entries are up to date.',
+    'sync.discardSyncEntry': 'Discard',
+    'sync.retrySyncEntry': 'Retry',
+
   } as const;

@@ -14,11 +14,12 @@ import {
   Platform,
   ActivityIndicator,
   TextInput,
-  TouchableOpacity
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, softDeleteDayLogEntry, softDeleteDayLog } from '@/lib/database';
+import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, softDeleteDayLogEntry, softDeleteDayLog, getOrCreateDayLog, addEntryToDayLog, getBusinessByOwner } from '@/lib/database';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useEntryStore } from '@/store/entryStore';
@@ -30,6 +31,9 @@ import { ParticleEffect } from '@/components/ParticleEffect';
 import Animated, { FadeInDown, FadeInUp, FadeInRight, Layout } from 'react-native-reanimated';
 import { Colors as ThemeColors, Fonts, Radius } from '@/constants/theme';
 import { DraggableDeletionWrapper } from '@/components/DraggableDeletionWrapper';
+import * as Clipboard from 'expo-clipboard';
+import { useBusinessStore } from '@/store/businessStore';
+import { useAuthStore } from '@/store/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +41,9 @@ export default function CustomerDetailScreen() {
   const { t } = useTranslation();
   const { customerId } = useLocalSearchParams<{ customerId: string }>();
   const setEditingEntry = useEntryStore(state => state.setEditingEntry);
+  const business = useBusinessStore(state => state.business);
+  const businessOwnerName = business?.businessName || business?.business_name || '';
+  const { user } = useAuthStore();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
@@ -45,6 +52,9 @@ export default function CustomerDetailScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
+
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -126,6 +136,56 @@ export default function CustomerDetailScreen() {
     } catch (err: any) {
       Alert.alert(t('Error'), err.message || t('Failed to delete entry'));
     }
+  };
+
+  const formatTemplate = (template: string, vars: Record<string, string>) => {
+    return Object.keys(vars).reduce((res, key) => res.replace(`{${key}}`, vars[key]), template);
+  };
+
+  const handleWhatsAppAction = async (type: 'statement' | 'reminder') => {
+    if (!customer) return;
+    const totalDue = (customer as any).balance || 0;
+    
+    let message = '';
+    if (type === 'statement') {
+      const last5 = dayLogs.flatMap(log => {
+        const logDate = new Date(log.date);
+        const dateStr = logDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        return (log.entries || []).filter((e: any) => !e.is_deleted).map((e: any) => {
+          const isGave = e.type === 'gave' || e.type === 'debit';
+          const amt = Number(e.amount) || 0;
+          return `• ${dateStr} — ${isGave ? t('GAVE') : t('GOT')} ₹${amt}`;
+        });
+      }).slice(0, 5).join('\n');
+
+      message = formatTemplate(t('whatsappStatementTemplate'), {
+        customerName: customer.name,
+        balance: totalDue.toString(),
+        last5Entries: last5 || t('No entries yet'),
+        businessOwnerName
+      });
+    } else {
+      message = formatTemplate(t('whatsappReminderTemplate'), {
+        customerName: customer.name,
+        balance: totalDue.toString(),
+        businessOwnerName
+      });
+    }
+
+    const cleanPhone = customer.phone ? customer.phone.replace(/\D/g, '').replace(/^91/, '') : '';
+    const url = cleanPhone.length === 10
+      ? `whatsapp://send?phone=91${cleanPhone}&text=${encodeURIComponent(message)}`
+      : `whatsapp://send?text=${encodeURIComponent(message)}`;
+
+    const canOpen = await Linking.canOpenURL(url);
+
+    if (canOpen) {
+      await Linking.openURL(url);
+    } else {
+      await Clipboard.setStringAsync(message);
+      Alert.alert(t('whatsappNotFoundTitle'), t('whatsappNotFoundMessage'));
+    }
+    setShowWhatsAppModal(false);
   };
 
   if (loading) return <LoadingSpinner />;
@@ -374,6 +434,41 @@ export default function CustomerDetailScreen() {
           <MaterialIcons name="add" size={32} color="#FFFFFF" />
         </TouchableOpacity>
       )}
+
+
+
+      {/* WHATSAPP FAB */}
+      <TouchableOpacity
+        style={[styles.whatsappFab, { bottom: isTodayLocked ? 90 : 164 }]}
+        onPress={() => setShowWhatsAppModal(true)}
+        activeOpacity={0.9}
+      >
+        <MaterialCommunityIcons name="whatsapp" size={32} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* WHATSAPP MODAL */}
+      <Modal
+        visible={showWhatsAppModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWhatsAppModal(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowWhatsAppModal(false)}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity style={styles.modalOption} onPress={() => handleWhatsAppAction('statement')}>
+              <MaterialCommunityIcons name="file-document-outline" size={24} color={ThemeColors.brandDark} />
+              <Text style={styles.modalOptionText}>{t('whatsappShareStatementTitle')}</Text>
+            </TouchableOpacity>
+            <View style={styles.modalDivider} />
+            <TouchableOpacity style={styles.modalOption} onPress={() => handleWhatsAppAction('reminder')}>
+              <MaterialCommunityIcons name="bell-outline" size={24} color={ThemeColors.brandDark} />
+              <Text style={styles.modalOptionText}>{t('whatsappSendReminderTitle')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+
     </SafeAreaView>
   );
 }
@@ -578,4 +673,53 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
   },
+  whatsappFab: {
+    position: 'absolute',
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#25D366',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: width * 0.8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalOptionText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 16,
+    color: ThemeColors.brandDark,
+    marginLeft: 16,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: ThemeColors.creamBorder,
+  },
+
+
 });
