@@ -10,8 +10,16 @@ import { useTranslation } from "../../hooks/useTranslation";
  */
 export default function AdPayScreen() {
     const { t } = useTranslation();
-  const handlePayment = () => {
-    alert('Ad payment integration coming soon.');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const handlePayment = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      alert('Ad payment integration coming soon.');
+    } finally {
+      setTimeout(() => setIsSubmitting(false), 3000);
+    }
   };
 
   return (
@@ -27,6 +35,7 @@ export default function AdPayScreen() {
       <Button
         title={t(`Pay ₹100 Now`)}
         onPress={handlePayment}
+        disabled={isSubmitting}
         fullWidth
         style={styles.button}
       />

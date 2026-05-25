@@ -5,6 +5,11 @@ import { Client, Databases, Query, ID, Permission, Role, Users } from 'node-appw
  * Appwrite Cloud Function — merged into one function due to free tier limits.
  */
 export default async ({ req, res, log, error }) => {
+  const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
+  if (!CASHFREE_SECRET_KEY) {
+    throw new Error('CASHFREE_SECRET_KEY env var is not set');
+  }
+
   let body;
   try {
     body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;

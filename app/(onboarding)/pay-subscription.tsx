@@ -14,11 +14,19 @@ export default function PaySubscriptionScreen() {
   const params = useLocalSearchParams();
   const businessName = (params.businessName as string) || 'Your Business';
 
-  const handlePayment = () => {
-    // TODO: Call Appwrite Function to create Cashfree order
-    // Then open WebView for payment
-    // On success, navigate to business dashboard
-    alert('Payment integration coming soon. This is a placeholder.');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const handlePayment = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      // TODO: Call Appwrite Function to create Cashfree order
+      // Then open WebView for payment
+      // On success, navigate to business dashboard
+      alert('Payment integration coming soon. This is a placeholder.');
+    } finally {
+      setTimeout(() => setIsSubmitting(false), 3000);
+    }
   };
 
   return (
@@ -34,6 +42,7 @@ export default function PaySubscriptionScreen() {
       <Button
         title={t(`Pay ₹11 Now`)}
         onPress={handlePayment}
+        disabled={isSubmitting}
         fullWidth
         style={styles.button}
       />

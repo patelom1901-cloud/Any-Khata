@@ -104,7 +104,7 @@ export const getAuthUser = async () => {
  */
 export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
   if (__DEV__) {
-    console.log('[getOrCreateUserDoc] Called with authUser.$id:', authUser?.$id, 'email:', authUser?.email);
+    console.log('[auth] user authenticated successfully');
   }
   // Check if user doc exists
   const existing = await databases.listDocuments(DB_ID, COL_USERS, [
@@ -133,14 +133,14 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
     };
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cacheableUser));
     if (__DEV__) {
-      console.log('[getOrCreateUserDoc] Returning EXISTING userDoc:', JSON.stringify(userDoc));
+      console.log('[auth] session hydrated');
     }
     return userDoc;
   }
 
   // Create new user doc — only write fields that exist in the Appwrite schema
   if (__DEV__) {
-    console.log('[getOrCreateUserDoc] No existing doc found. Creating NEW user doc for:', authUser.$id);
+    console.log('[getOrCreateUserDoc] No existing doc found. Creating NEW user doc.');
   }
   let newDoc: any;
   try {
@@ -161,7 +161,7 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
       ]
     );
     if (__DEV__) {
-      console.log('[getOrCreateUserDoc] createDocument succeeded. newDoc.$id:', newDoc.$id);
+      console.log('[getOrCreateUserDoc] createDocument succeeded.');
     }
   } catch (createErr: any) {
     if (__DEV__) {
@@ -187,7 +187,7 @@ export const getOrCreateUserDoc = async (authUser: any): Promise<AppUser> => {
   };
   await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cacheableUser));
   if (__DEV__) {
-    console.log('[getOrCreateUserDoc] Returning NEW userDoc:', JSON.stringify(userDoc));
+    console.log('[auth] session hydrated');
   }
   return userDoc;
 };
@@ -283,7 +283,7 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
     console.log('[hydrateSession] Calling account.get()...');
     const authUser = await account.get();
     if (__DEV__) {
-      console.log('[hydrateSession] account.get() result:', JSON.stringify(authUser));
+      console.log('[hydrateSession] account.get() successful');
     }
     if (!authUser) {
       // No session — clear any stale cached data
@@ -294,7 +294,7 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
 
     // Fetch the user document from the database
     if (__DEV__) {
-      console.log('[hydrateSession] Fetching user doc for userId:', authUser.$id);
+      console.log('[hydrateSession] Fetching user doc');
     }
     const existing = await databases.listDocuments(DB_ID, COL_USERS, [
       Query.equal('userId', authUser.$id),
@@ -328,7 +328,7 @@ export const hydrateSession = async (): Promise<AppUser | null> => {
     };
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(cacheableUser));
     if (__DEV__) {
-      console.log('[hydrateSession] Returning existing userDoc:', JSON.stringify(userDoc));
+      console.log('[auth] session hydrated');
     }
     return userDoc;
   } catch (error) {

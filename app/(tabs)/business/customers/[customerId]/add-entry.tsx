@@ -85,7 +85,11 @@ export default function AddEntryScreen() {
     setLoading(true);
     try {
       if (editingEntry && dayLogId) {
-        const parsedQuantity = quantity.trim() ? parseFloat(quantity) : undefined;
+        const parsedQuantity = parseFloat(quantity);
+        if (quantity && isNaN(parsedQuantity)) {
+          Alert.alert('Invalid Input', 'Please enter a valid quantity.');
+          return;
+        }
         await updateDayLogEntry(dayLogId, editingEntry.id, {
           description: description.trim(),
           amount: parsedAmount,
@@ -120,7 +124,11 @@ export default function AddEntryScreen() {
         setLoading(false);
         return;
       }
-      const parsedQuantity = quantity.trim() ? parseFloat(quantity) : undefined;
+      const parsedQuantity = parseFloat(quantity);
+      if (quantity && isNaN(parsedQuantity)) {
+        Alert.alert('Invalid Input', 'Please enter a valid quantity.');
+        return;
+      }
       const userId = user.userId || (user as any).$id;
       const dayLog = await getOrCreateDayLog(businessId, customerId, userId);
       await addEntryToDayLog(dayLog, description.trim(), parsedAmount, 'gave', parsedQuantity);
