@@ -58,6 +58,7 @@ export default function ProfileScreen() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [subDates, setSubDates] = useState<{ started: string; expires: string } | null>(null);
   const [activeAds, setActiveAds] = useState<Ad[]>([]);
+  const [userAdCount, setUserAdCount] = useState<number>(0);
   const [failedEntries, setFailedEntries] = useState<PendingEntry[]>([]);
 
   // Avatar Logic
@@ -110,10 +111,13 @@ export default function ProfileScreen() {
             setSubDates(null);
           }
           if (fetchedBusiness) setBusiness(fetchedBusiness);
-          setActiveAds(Array.isArray(adsResult) ? adsResult : []);
+          const adsArray = Array.isArray(adsResult) ? adsResult : [];
+          setActiveAds(adsArray);
+          setUserAdCount(adsArray.length);
         } catch (err: any) {
           setIsSubscribed(false);
           setActiveAds([]);
+          setUserAdCount(0);
         } finally {
           setLoadingSub(false);
         }
@@ -333,20 +337,26 @@ export default function ProfileScreen() {
                           </View>
                         )}
                         <View style={styles.adActionRow}>
+                          {isLast && isAdActive && (
+                            userAdCount < 2 ? (
+                              <TouchableOpacity
+                                style={[styles.adEditBtn, { marginRight: 8 }]}
+                                onPress={() => router.push('/ad-submit' as any)}
+                              >
+                                <MaterialIcons name="add" size={20} color={ThemeColors.brandLight} />
+                              </TouchableOpacity>
+                            ) : (
+                              <Text style={{ fontSize: 11, color: ThemeColors.textMuted, marginRight: 8 }}>
+                                Ad limit reached (2/2)
+                              </Text>
+                            )
+                          )}
                           <TouchableOpacity
                             style={styles.adEditBtn}
                             onPress={() => router.push(`/ad-edit/${ad.adId}` as any)}
                           >
                             <MaterialIcons name="edit" size={18} color={ThemeColors.brandMid} />
                           </TouchableOpacity>
-                          {isLast && isAdActive && (
-                            <TouchableOpacity
-                              style={[styles.adEditBtn, { marginLeft: 8 }]}
-                              onPress={() => router.push('/ad-submit' as any)}
-                            >
-                              <MaterialIcons name="add" size={20} color={ThemeColors.brandLight} />
-                            </TouchableOpacity>
-                          )}
                         </View>
                       </View>
                     </View>
@@ -721,6 +731,7 @@ const styles = StyleSheet.create({
   adActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     marginTop: 10,
   },
   adEditBtn: {

@@ -22,7 +22,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { createAd } from '../../lib/database';
+import { createAd, getAdsByUserId } from '../../lib/database';
 import { createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { useAuthStore } from '../../store/authStore';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -142,6 +142,12 @@ export default function AdSubmitScreen() {
 
     try {
       setIsSubmitting(true);
+
+      const existingAds = await getAdsByUserId(user!.userId);
+      if (existingAds.length >= 2) {
+        Alert.alert(t('common.error'), 'Maximum 2 ads allowed');
+        return;
+      }
 
       if (!CONFIG.PAYMENTS_ENABLED) {
         // Skip payment, create ad directly

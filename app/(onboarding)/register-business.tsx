@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, StatusBar, SafeAreaView, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { isValidIndianPhone } from '../../utils/whatsappUtils';
 import { useAuthStore } from '../../store/authStore';
-import { createBusiness } from '../../lib/database';
+import { createBusiness, updateBusiness } from '../../lib/database';
 import { databases } from '../../lib/appwrite';
 import { DB_ID, COL_USERS } from '../../constants/appwrite';
 import { useTranslation } from "../../hooks/useTranslation";
@@ -18,8 +20,57 @@ export default function RegisterBusinessScreen() {
   const [businessName, setBusinessName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [storePhotoUrl, setStorePhotoUrl] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handlePickAndUploadPhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.75,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      setIsUploadingPhoto(true);
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: asset.uri,
+        type: asset.mimeType || 'image/jpeg',
+        name: asset.fileName || 'store_photo.jpg',
+      } as any);
+      formData.append('upload_preset', process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+      const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      const data = await response.json();
+      if (!response.ok || !data.secure_url) {
+        throw new Error(data.error?.message || 'Upload failed');
+      }
+
+      setStorePhotoUrl(data.secure_url);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to upload photo');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!businessName.trim()) {
@@ -44,7 +95,7 @@ export default function RegisterBusinessScreen() {
       setLoading(true);
       setError('');
       // 1. Create the business document
-      await createBusiness({
+      const newBusiness = await createBusiness({
         ownerId: user.userId,
         businessName,
         ownerName,
@@ -53,6 +104,10 @@ export default function RegisterBusinessScreen() {
         city: '',
         state: '',
       });
+      // Save store photo URL if one was uploaded
+      if (storePhotoUrl && newBusiness?.businessId) {
+        await updateBusiness(newBusiness.businessId, { store_photo_url: storePhotoUrl } as any);
+      }
       // 2. Update user document in 'users' collection with snake_case field
       try {
         await databases.updateDocument(DB_ID, COL_USERS, user.$id, {
@@ -100,6 +155,32 @@ export default function RegisterBusinessScreen() {
           </Text>
 
           <View style={styles.card}>
+            {/* Store Photo Upload */}
+            <Text style={styles.label}>{t('Store Photo')} ({t('Optional')})</Text>
+            <TouchableOpacity
+              style={styles.photoPicker}
+              onPress={handlePickAndUploadPhoto}
+              disabled={isUploadingPhoto || loading}
+              activeOpacity={0.75}
+            >
+              {isUploadingPhoto ? (
+                <ActivityIndicator size="large" color={ThemeColors.brandLight} />
+              ) : storePhotoUrl ? (
+                <Image
+                  source={storePhotoUrl}
+                  cachePolicy="disk"
+                  transition={200}
+                  style={styles.photoPreview}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <MaterialIcons name="camera-alt" size={36} color={ThemeColors.brandMid} />
+                  <Text style={styles.photoHint}>{t('Add Store Photo (Optional)')}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('Business Name')}</Text>
               <View style={styles.inputWrapper}>
@@ -174,6 +255,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: ThemeColors.creamBase,
+  },
+  photoPicker: {
+    width: '100%',
+    height: 180,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: ThemeColors.brandLight,
+    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(201,136,58,0.05)',
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  photoPlaceholder: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  photoHint: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: ThemeColors.brandLight,
   },
   headerInner: {
     paddingHorizontal: 24,
