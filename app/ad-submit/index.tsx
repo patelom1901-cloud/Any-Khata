@@ -26,6 +26,7 @@ import { createAd } from '../../lib/database';
 import { createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { useAuthStore } from '../../store/authStore';
 import { useTranslation } from '../../hooks/useTranslation';
+import { CONFIG } from '../../constants/config';
 import { WavyHeader } from '../../components/ui/WavyHeader';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -142,6 +143,29 @@ export default function AdSubmitScreen() {
     try {
       setIsSubmitting(true);
 
+      if (!CONFIG.PAYMENTS_ENABLED) {
+        // Skip payment, create ad directly
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        
+        await createAd({
+          business_name: data.businessName,
+          owner_name: data.ownerName,
+          phone: data.phone,
+          image_url: imageUrl,
+          subscription_status: 'active',
+          subscription_expiry: '2099-12-31',
+          gstin: data.gstin || undefined,
+          website_url: data.websiteUrl || undefined,
+          maps_url: data.mapsUrl || undefined,
+        });
+
+        Alert.alert(t('ad_submit.success_title'), t('ad_submit.success_msg'), [
+          { text: t('common.ok'), onPress: () => router.back() }, // or router.push('/(tabs)/home' as any)
+        ]);
+        return;
+      }
+
       const orderId = 'ad_order_' + Date.now();
       const redirectUri = makeRedirectUri({ path: 'payment-callback' });
 
@@ -182,6 +206,8 @@ export default function AdSubmitScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // Removed CONFIG.PAYMENTS_ENABLED check to show form for everyone
 
   return (
     <SafeAreaView style={styles.container}>
@@ -356,7 +382,7 @@ export default function AdSubmitScreen() {
             {isSubmitting ? (
               <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.primaryBtnText}>{t('ad_submit.pay_go_live')}</Text>
+              <Text style={styles.primaryBtnText}>{!CONFIG.PAYMENTS_ENABLED ? t('Submit Ad') : t('ad_submit.pay_go_live')}</Text>
             )}
           </TouchableOpacity>
 

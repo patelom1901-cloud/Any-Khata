@@ -14,6 +14,7 @@ import { useTranslation } from "../../../hooks/useTranslation";
 import { getBusinessById } from '../../../lib/database';
 import { WavyHeader } from '../../../components/ui/WavyHeader';
 import Animated, { FadeInDown, FadeInUp, FadeInRight, Layout } from 'react-native-reanimated';
+import { CONFIG } from '../../../constants/config';
 
 const { width } = Dimensions.get('window');
 
@@ -69,7 +70,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {business.subscriptionStatus === 'expired' && (
+        {CONFIG.PAYMENTS_ENABLED && business.subscriptionStatus === 'expired' && (
           <Animated.View entering={FadeInDown} style={styles.expiredBanner}>
             <View style={styles.expiredLeft}>
               <MaterialIcons name="warning" size={20} color="#FFF" />
@@ -153,7 +154,7 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* FAB */}
-      {business.subscriptionStatus === 'active' && (
+      {(!CONFIG.PAYMENTS_ENABLED || business.subscriptionStatus === 'active') && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => router.push('/(tabs)/business/customers/add' as any)}

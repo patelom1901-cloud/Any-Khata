@@ -10,6 +10,7 @@ import { getTodayString } from '../utils/dateUtils';
 import { parseEntries, serializeEntries, calcDayTotal, createEntry } from '../utils/entryUtils';
 import type { Customer, DayLog, Business, Ad, DayEntry } from '../types';
 import { useAuthStore } from '../store/authStore';
+import { CONFIG } from '../constants/config';
 
 // ─── Customers ───────────────────────────────────────────────
 
@@ -348,6 +349,7 @@ export const removeEntryFromDayLog = async (
 export const getBusinessByOwner = async (ownerId: string): Promise<Business | null> => {
   const res = await databases.listDocuments(DB_ID, COL_BUSINESSES, [
     Query.equal('owner_id', ownerId),
+    Query.orderDesc('$createdAt'),
     Query.limit(1),
   ]);
 
@@ -527,11 +529,14 @@ export const deleteAllUserData = async (userId: string): Promise<void> => {
 export const getActiveAds = async (): Promise<Ad[]> => {
   try {
     const todayDateString = new Date().toISOString().split('T')[0];
-    const res = await databases.listDocuments(DB_ID, COL_ADS, [
-      Query.equal('is_deleted', false),
-      Query.equal('subscription_status', 'active'),
-      Query.greaterThanEqual('subscription_expiry', todayDateString),
-    ]);
+    const queries = [Query.equal('is_deleted', false)];
+    
+    if (CONFIG.PAYMENTS_ENABLED) {
+      queries.push(Query.equal('subscription_status', 'active'));
+      queries.push(Query.greaterThanEqual('subscription_expiry', todayDateString));
+    }
+
+    const res = await databases.listDocuments(DB_ID, COL_ADS, queries);
     return res.documents.map((doc: any) => ({
       adId: doc.$id,
       business_name: doc.business_name || '',
@@ -601,7 +606,7 @@ export const createAd = async (data: {
   phone: string;
   image_file_id?: string;
   image_url: string;
-  subscriptionStatus?: string;
+  subscription_status?: string;
   subscription_expiry?: string;
   gstin?: string;
   website_url?: string;
@@ -618,8 +623,9 @@ export const createAd = async (data: {
     phone: data.phone,
     image_file_id: data.image_file_id || '',
     image_url: data.image_url,
-    subscriptionStatus: data.subscriptionStatus || 'pending',
+    subscription_status: data.subscription_status || 'pending',
     subscription_expiry: (data.subscription_expiry || '').split('T')[0],
+    is_deleted: false,
     created_at: new Date().toISOString().split('T')[0],
   };
   if (data.gstin) payload.gstin = data.gstin;

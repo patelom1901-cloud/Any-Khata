@@ -19,6 +19,7 @@ import { initOfflineDB, getPendingCount } from '../lib/offlineQueue';
 import { startSyncListener, runSync } from '../lib/syncWorker';
 import { useAuthStore } from '../store/authStore';
 import NetInfo from '@react-native-community/netinfo';
+import { useInterstitialAd } from '../hooks/useInterstitialAd';
 
 // Suppress Appwrite SDK network errors from RN's global handler.
 // Our code catches these — this prevents the duplicate alert.
@@ -42,6 +43,15 @@ export default function RootLayout() {
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
   });
+
+  const { showAd } = useInterstitialAd();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      showAd();
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Hide the native splash the instant fonts are ready
   useEffect(() => {

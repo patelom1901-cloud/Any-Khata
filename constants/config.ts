@@ -19,3 +19,10 @@ export const FEATURES = {
   INVENTORY: false,            // item/product catalog
   EMPLOYEE_MANAGEMENT: false,  // worker tracking
 };
+
+export const CONFIG = {
+  PAYMENTS_ENABLED: false,
+  ADMOB_ENABLED: true,
+  ADMOB_BANNER_ID: "ca-app-pub-3940256099942544/6300978111",
+  ADMOB_INTERSTITIAL_ID: "ca-app-pub-3940256099942544/1033173712",
+};

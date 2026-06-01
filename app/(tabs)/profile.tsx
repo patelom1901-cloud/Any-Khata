@@ -27,7 +27,7 @@ import { clearCachedUser } from '../../lib/auth';
 import { deleteUserAccount, createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { getFailedEntries, resetEntryForRetry, discardFailedEntry, PendingEntry } from '../../lib/offlineQueue';
 import { runSync } from '../../lib/syncWorker';
-import { FEATURES } from '../../constants/config';
+import { FEATURES, CONFIG } from '../../constants/config';
 import type { Locale } from '../../constants/i18n/index';
 import { useTranslation } from "../../hooks/useTranslation";
 import { Ad } from '../../types';
@@ -189,7 +189,7 @@ export default function ProfileScreen() {
           <View style={styles.identityCard}>
             <View style={styles.avatarWrapper}>
               <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-              {isSubscribed && (
+              {CONFIG.PAYMENTS_ENABLED && isSubscribed && (
                 <View style={styles.verifiedBadge}>
                   <MaterialIcons name="verified" size={16} color={ThemeColors.brandLight} />
                 </View>
@@ -227,11 +227,13 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <View style={isSubscribed ? styles.activeBadge : styles.expiredBadge}>
-                    <Text style={isSubscribed ? styles.activeBadgeText : styles.expiredBadgeText}>
-                      {isSubscribed ? t('profile.active_plan_11') : t('profile.expired')}
-                    </Text>
-                  </View>
+                  {CONFIG.PAYMENTS_ENABLED && (
+                    <View style={isSubscribed ? styles.activeBadge : styles.expiredBadge}>
+                      <Text style={isSubscribed ? styles.activeBadgeText : styles.expiredBadgeText}>
+                        {isSubscribed ? t('profile.active_plan_11') : t('profile.expired')}
+                      </Text>
+                    </View>
+                  )}
                   <TouchableOpacity
                     style={styles.editButton}
                     onPress={() => router.push('/(tabs)/business/edit-business' as any)}
@@ -241,29 +243,31 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              {!isSubscribed ? (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={styles.statusErrorMsg}>
-                    {t('profile.subscription_ended_msg')}
-                  </Text>
-                  <TouchableOpacity 
-                    style={styles.primaryActionBtn}
-                    onPress={handlePayment}
-                    disabled={paying}
-                  >
-                    {paying ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.primaryActionText}>{t('profile.pay_reactivate_btn')}</Text>}
-                  </TouchableOpacity>
-                </View>
-              ) : subDates && (
-                <View style={styles.expiryRow}>
-                  <Ionicons name="time-outline" size={14} color={ThemeColors.textSecondary} />
-                  <Text style={[styles.dateText, getDaysRemaining(subDates.expires) <= 5 && { color: ThemeColors.creditRed }]}>
-                    {t('profile.expires_in')} {getDaysRemaining(subDates.expires)} {t('common.days')}
-                  </Text>
-                </View>
+              {CONFIG.PAYMENTS_ENABLED && (
+                !isSubscribed ? (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={styles.statusErrorMsg}>
+                      {t('profile.subscription_ended_msg')}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.primaryActionBtn}
+                      onPress={handlePayment}
+                      disabled={paying}
+                    >
+                      {paying ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.primaryActionText}>{t('profile.pay_reactivate_btn')}</Text>}
+                    </TouchableOpacity>
+                  </View>
+                ) : subDates && (
+                  <View style={styles.expiryRow}>
+                    <Ionicons name="time-outline" size={14} color={ThemeColors.textSecondary} />
+                    <Text style={[styles.dateText, getDaysRemaining(subDates.expires) <= 5 && { color: ThemeColors.creditRed }]}>
+                      {t('profile.expires_in')} {getDaysRemaining(subDates.expires)} {t('common.days')}
+                    </Text>
+                  </View>
+                )
               )}
             </View>
-          ) : isSubscribed && !hasBusiness ? (
+          ) : (!CONFIG.PAYMENTS_ENABLED || isSubscribed) && !hasBusiness ? (
             <TouchableOpacity 
               style={styles.emptyCard}
               onPress={() => router.push('/(onboarding)/register-business')}
@@ -272,7 +276,7 @@ export default function ProfileScreen() {
               <Text style={styles.emptyCardTitle}>{t('profile.register_business')}</Text>
               <Text style={styles.emptyCardSubtitle}>{t('profile.setup_profile_desc')}</Text>
             </TouchableOpacity>
-          ) : FEATURES.ENABLE_PAYMENTS ? (
+          ) : CONFIG.PAYMENTS_ENABLED && FEATURES.ENABLE_PAYMENTS ? (
             <View style={styles.whiteCard}>
               <Text style={styles.cardTitle}>{t('profile.start_khata')}</Text>
               <Text style={styles.cardSubtitle}>{t('profile.manage_customers')}</Text>
@@ -319,11 +323,13 @@ export default function ProfileScreen() {
                         </View>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
-                        <View style={isAdActive ? styles.activeBadge : styles.expiredBadge}>
-                          <Text style={isAdActive ? styles.activeBadgeText : styles.expiredBadgeText}>
-                            {isAdActive ? t('profile.active_plan_100') : t('profile.expired')}
-                          </Text>
-                        </View>
+                        {CONFIG.PAYMENTS_ENABLED && (
+                          <View style={isAdActive ? styles.activeBadge : styles.expiredBadge}>
+                            <Text style={isAdActive ? styles.activeBadgeText : styles.expiredBadgeText}>
+                              {isAdActive ? t('profile.active_plan_100') : t('profile.expired')}
+                            </Text>
+                          </View>
+                        )}
                         <View style={styles.adActionRow}>
                           <TouchableOpacity
                             style={styles.adEditBtn}
@@ -343,25 +349,27 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     
-                    {isAdActive ? (
-                      <View style={styles.expiryRow}>
-                        <Ionicons name="time-outline" size={14} color={ThemeColors.textSecondary} />
-                        <Text style={[styles.dateText, daysLeft <= 5 && { color: ThemeColors.creditRed }]}>
-                          {t(`Expires in`)} {daysLeft} {t(`days`)}
-                        </Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity 
-                        style={[styles.primaryActionBtn, { marginTop: 12, paddingVertical: 10 }]}
-                        onPress={() => router.push({ pathname: '/ad-submit', params: { adId: ad.adId } } as any)}
-                      >
-                        <Text style={styles.primaryActionText}>{t('profile.renew_ad_btn')}</Text>
-                      </TouchableOpacity>
+                    {CONFIG.PAYMENTS_ENABLED && (
+                      isAdActive ? (
+                        <View style={styles.expiryRow}>
+                          <Ionicons name="time-outline" size={14} color={ThemeColors.textSecondary} />
+                          <Text style={[styles.dateText, daysLeft <= 5 && { color: ThemeColors.creditRed }]}>
+                            {t(`Expires in`)} {daysLeft} {t(`days`)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity 
+                          style={[styles.primaryActionBtn, { marginTop: 12, paddingVertical: 10 }]}
+                          onPress={() => router.push({ pathname: '/ad-submit', params: { adId: ad.adId } } as any)}
+                        >
+                          <Text style={styles.primaryActionText}>{t('profile.renew_ad_btn')}</Text>
+                        </TouchableOpacity>
+                      )
                     )}
                   </Animated.View>
                 );
               })}
-              {FEATURES.ENABLE_PAYMENTS && activeAds.length === 0 && (
+              {(!CONFIG.PAYMENTS_ENABLED || FEATURES.ENABLE_PAYMENTS) && activeAds.length === 0 && (
                 <View style={styles.whiteCard}>
                   <Text style={styles.cardTitle}>{t('profile.advertise_business')}</Text>
                   <Text style={styles.cardSubtitle}>{t('profile.reach_local_msg')}</Text>
@@ -369,7 +377,7 @@ export default function ProfileScreen() {
                     style={styles.primaryActionBtn}
                     onPress={() => router.push('/ad-submit' as any)}
                   >
-                    <Text style={styles.primaryActionText}>{t('profile.pay_ad_btn')}</Text>
+                    <Text style={styles.primaryActionText}>{!CONFIG.PAYMENTS_ENABLED ? 'Submit Ad' : t('profile.pay_ad_btn')}</Text>
                   </TouchableOpacity>
                 </View>
               )}

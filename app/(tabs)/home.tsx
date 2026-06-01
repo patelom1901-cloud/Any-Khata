@@ -43,6 +43,8 @@ import { WavyHeader } from '../../components/ui/WavyHeader';
 import { SectionLabel } from '../../components/ui/SectionLabel';
 import { CardWrapper } from '../../components/ui/CardWrapper';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
+import AdBanner from '../../components/AdBanner';
+import { CONFIG } from '../../constants/config';
 
 const { width } = Dimensions.get('window');
 
@@ -660,7 +662,7 @@ const HomeScreen = () => {
         </WavyHeader>
 
         {/* 2.5 BUSINESS SLIDER (Moved above card) */}
-        {!adsLoading && ads.length > 0 && (
+        {!adsLoading && (!CONFIG.PAYMENTS_ENABLED || ads.length > 0) && (
           <Animated.View entering={FadeInDown.delay(200).duration(400)}>
             <AdCarousel ads={ads} onAdPress={setSelectedAd} />
           </Animated.View>
@@ -1080,6 +1082,8 @@ const HomeScreen = () => {
 
       {/* BUSINESS DETAIL MODAL */}
       <BusinessModal ad={selectedAd} onClose={() => setSelectedAd(null)} />
+      
+      <AdBanner />
     </SafeAreaView>
   );
 

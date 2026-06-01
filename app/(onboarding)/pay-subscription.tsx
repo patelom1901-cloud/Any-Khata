@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Button } from '../../components/ui/Button';
 import { Colors, FontSize, FontWeight, Spacing } from '../../constants/colors';
 import { useTranslation } from "../../hooks/useTranslation";
+import { CONFIG } from '../../constants/config';
 
 /**
  * Payment screen — placeholder for Cashfree WebView integration
@@ -28,6 +29,8 @@ export default function PaySubscriptionScreen() {
       setTimeout(() => setIsSubmitting(false), 3000);
     }
   };
+
+  if (!CONFIG.PAYMENTS_ENABLED) return null;
 
   return (
     <View style={styles.container}>

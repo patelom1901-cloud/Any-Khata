@@ -6,10 +6,13 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Colors, FontSize, FontWeight, Spacing } from '../../../constants/colors';
 import { useTranslation } from "../../../hooks/useTranslation";
+import { CONFIG } from '../../../constants/config';
 
 export default function SubscriptionScreen() {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
   const business = useBusinessStore((state) => state.business);
+
+  if (!CONFIG.PAYMENTS_ENABLED) return null;
 
   if (!business) {
     return (
