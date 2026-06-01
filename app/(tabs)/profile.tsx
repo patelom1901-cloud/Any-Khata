@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
@@ -87,38 +87,40 @@ export default function ProfileScreen() {
     return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchSub = async () => {
-      try {
-        const userId = user.userId || (user as any).$id;
-        const [active, activeSub, fetchedBusiness, adsResult] = await Promise.all([
-          checkBusinessSubscriptionStatus(userId),
-          getActiveSubscription(userId),
-          getBusinessByOwner(userId),
-          getAdsByUserId(userId)
-        ]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      const fetchSub = async () => {
+        try {
+          const userId = user.userId || (user as any).$id;
+          const [active, activeSub, fetchedBusiness, adsResult] = await Promise.all([
+            checkBusinessSubscriptionStatus(userId),
+            getActiveSubscription(userId),
+            getBusinessByOwner(userId),
+            getAdsByUserId(userId)
+          ]);
 
-        setIsSubscribed(active);
-        if (active && activeSub) {
-          const startDate = new Date(activeSub.$createdAt);
-          const expiryDate = new Date(startDate);
-          expiryDate.setDate(startDate.getDate() + 30);
-          setSubDates({ started: startDate.toISOString(), expires: expiryDate.toISOString() });
-        } else {
-          setSubDates(null);
+          setIsSubscribed(active);
+          if (active && activeSub) {
+            const startDate = new Date(activeSub.$createdAt);
+            const expiryDate = new Date(startDate);
+            expiryDate.setDate(startDate.getDate() + 30);
+            setSubDates({ started: startDate.toISOString(), expires: expiryDate.toISOString() });
+          } else {
+            setSubDates(null);
+          }
+          if (fetchedBusiness) setBusiness(fetchedBusiness);
+          setActiveAds(Array.isArray(adsResult) ? adsResult : []);
+        } catch (err: any) {
+          setIsSubscribed(false);
+          setActiveAds([]);
+        } finally {
+          setLoadingSub(false);
         }
-        if (fetchedBusiness) setBusiness(fetchedBusiness);
-        setActiveAds(Array.isArray(adsResult) ? adsResult : []);
-      } catch (err: any) {
-        setIsSubscribed(false);
-        setActiveAds([]);
-      } finally {
-        setLoadingSub(false);
-      }
-    };
-    fetchSub();
-  }, [user]);
+      };
+      fetchSub();
+    }, [user])
+  );
 
   const handlePayment = async () => {
     try {

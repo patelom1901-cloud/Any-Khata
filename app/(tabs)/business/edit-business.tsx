@@ -152,31 +152,6 @@ export default function EditBusinessScreen() {
         <Animated.View entering={FadeInDown.duration(600)} style={styles.content}>
           
           <View style={styles.card}>
-            {/* ── Store Photo Picker ── */}
-            <TouchableOpacity
-              style={styles.photoPicker}
-              onPress={handlePickAndUploadPhoto}
-              disabled={isUploadingPhoto}
-              activeOpacity={0.8}
-            >
-              {isUploadingPhoto ? (
-                <ActivityIndicator size="large" color={ThemeColors.brandLight} />
-              ) : storePhotoUrl ? (
-                <View style={styles.imageContainer}>
-                  <Image source={{ uri: storePhotoUrl }} style={styles.photoPreview} />
-                  <View style={styles.imageOverlay}>
-                    <MaterialIcons name="photo-camera" size={24} color="#FFF" />
-                    <Text style={styles.imageOverlayText}>{t('Change Photo')}</Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Ionicons name="images-outline" size={48} color={ThemeColors.brandMid} opacity={0.5} />
-                  <Text style={styles.photoHint}>{t('ad_submit.tap_to_upload')}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('Business Name')}</Text>
               <View style={styles.inputWrapper}>
@@ -226,6 +201,32 @@ export default function EditBusinessScreen() {
                 </View>
               </View>
             </View>
+
+            {/* ── Store Photo Picker ── */}
+            <Text style={[styles.label, { marginTop: 8 }]}>{t('Store Photo (Optional)')}</Text>
+            <TouchableOpacity
+              style={styles.photoPicker}
+              onPress={handlePickAndUploadPhoto}
+              disabled={isUploadingPhoto}
+              activeOpacity={0.8}
+            >
+              {isUploadingPhoto ? (
+                <ActivityIndicator size="large" color={ThemeColors.brandLight} />
+              ) : storePhotoUrl ? (
+                <View style={styles.imageContainer}>
+                  <Image source={{ uri: storePhotoUrl }} style={styles.photoPreview} />
+                  <View style={styles.imageOverlay}>
+                    <MaterialIcons name="photo-camera" size={24} color="#FFF" />
+                    <Text style={styles.imageOverlayText}>{t('Change Photo')}</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="images-outline" size={48} color={ThemeColors.brandMid} opacity={0.5} />
+                  <Text style={styles.photoHint}>{t('ad_submit.tap_to_upload')}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             <View style={styles.actions}>
               <TouchableOpacity 

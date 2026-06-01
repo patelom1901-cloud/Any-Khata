@@ -82,6 +82,9 @@ export default function RegisterBusinessScreen() {
       
       <WavyHeader>
         <View style={styles.headerInner}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{t(`Register Your Business`)}</Text>
         </View>
       </WavyHeader>
@@ -176,6 +179,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
   headerTitle: {
     fontFamily: Fonts.extrabold,
