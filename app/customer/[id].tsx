@@ -67,6 +67,7 @@ export default function CustomerLedgerScreen() {
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [ownerPhone, setOwnerPhone] = useState<string>('');
 
   // ── Modal / form state ────────────────────────────────────────────────────
   const [showAddEntry, setShowAddEntry] = useState(false);
@@ -101,6 +102,13 @@ export default function CustomerLedgerScreen() {
       setCustomer(customerDoc);
       await AsyncStorage.setItem(`@customer_${id}`, JSON.stringify(customerDoc));
 
+      // Fetch business to get the store owner's phone number
+      const business = await getBusiness(customerDoc.businessId ?? '');
+      if (business) {
+        setOwnerPhone((business as any).phone ?? '');
+        await AsyncStorage.setItem(`@owner_phone_${id}`, (business as any).phone ?? '');
+      }
+
       const linkedUserId: string = customerDoc.linkedUserId ?? '';
       const ownerId: string = customerDoc.ownerId ?? '';
 
@@ -111,8 +119,7 @@ export default function CustomerLedgerScreen() {
         setIsReadOnly(false);
         setIsOwner(true);
       } else {
-        const business = await getBusiness(customerDoc.businessId ?? '');
-        const bizOwnerId: string = (business as any)?.owner_id ?? '';
+        const bizOwnerId: string = (business as any)?.ownerId ?? '';
         const ownerConfirmed = user.userId === bizOwnerId;
         setIsReadOnly(!ownerConfirmed);
         setIsOwner(ownerConfirmed);
@@ -125,6 +132,10 @@ export default function CustomerLedgerScreen() {
       if (cachedCustomer) {
         const parsedCustomer = JSON.parse(cachedCustomer);
         setCustomer(parsedCustomer);
+
+        // Restore cached owner phone
+        const cachedOwnerPhone = await AsyncStorage.getItem(`@owner_phone_${id}`);
+        if (cachedOwnerPhone) setOwnerPhone(cachedOwnerPhone);
         
         const linkedUserId: string = parsedCustomer.linkedUserId ?? '';
         const ownerId: string = parsedCustomer.ownerId ?? '';
@@ -344,9 +355,10 @@ export default function CustomerLedgerScreen() {
   }
 
   const customerName: string = customer?.name ?? '';
-  const customerPhone: string = customer?.phone ?? '';
   const customerBalance: number = (customer as any)?.balance ?? 0;
   const customerInitials: string = getInitials(customerName);
+  // Display the store owner's phone (fetched from business), not the customer's phone
+  const displayPhone: string = ownerPhone || '';
 
   return (
     <View style={styles.safeArea}>
@@ -366,7 +378,7 @@ export default function CustomerLedgerScreen() {
               </View>
               <View style={styles.customerNameCol}>
                 <Text style={styles.customerNameText}>{customerName}</Text>
-                <Text style={styles.customerPhoneText}>{customerPhone}</Text>
+                <Text style={styles.customerPhoneText}>{displayPhone}</Text>
                 <Text style={{ fontFamily: Fonts.regular, fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
                   Code: {(customer as any).linkCode || '------'}
                 </Text>
@@ -376,7 +388,7 @@ export default function CustomerLedgerScreen() {
 
           <View style={styles.appBarRight}>
             <TouchableOpacity
-              onPress={() => customerPhone ? Linking.openURL('tel:' + customerPhone) : null}
+              onPress={() => displayPhone ? Linking.openURL('tel:' + displayPhone) : null}
               style={styles.callButton}
             >
               <MaterialIcons name="call" size={22} color={ThemeColors.textOnDark} />

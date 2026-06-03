@@ -111,7 +111,7 @@ export default function TermsOfServiceScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>5. Account Termination</Text>
           <Text style={styles.body}>
-            You may delete your account at any time by contacting us at support@anykhata.in. Upon
+            You may delete your account at any time by contacting us at patelom1901@gmail.com. Upon
             deletion, your personal data will be permanently removed within 30 days, except where
             retention is required by law.</Text>
           <Text style={styles.body}>
@@ -165,7 +165,7 @@ export default function TermsOfServiceScreen() {
           <Text style={styles.contactTitle}>{t(`Contact Us`)}</Text>
           <Text style={styles.body}>
             For questions about these Terms of Service, please contact us at:</Text>
-          <Text style={styles.contactEmail}>support@anykhata.in</Text>
+          <Text style={styles.contactEmail}>patelom1901@gmail.com</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

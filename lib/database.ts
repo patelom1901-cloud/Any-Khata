@@ -427,6 +427,7 @@ export const createBusiness = async (data: {
   businessType: string;
   city: string;
   state: string;
+  store_photo_url?: string | null;
 }): Promise<Business> => {
   const doc = await databases.createDocument(
     DB_ID,
@@ -440,6 +441,7 @@ export const createBusiness = async (data: {
       business_type: data.businessType,
       city: data.city,
       state: data.state,
+      store_photo_url: data.store_photo_url || null,
       is_active: true,
       created_at: new Date().toISOString(),
     },

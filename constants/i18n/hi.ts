@@ -41,7 +41,8 @@ export default {
     'profile.delete_confirm': 'क्या आप वाकई अपना खाता हटाना चाहते हैं?',
     'profile.delete_error': 'खाता हटाने में विफल। कृपया पुनः प्रयास करें।',
     'profile.delete_undo_msg': 'इसे पूर्ववत नहीं किया जा सकता।',
-    'profile.support_email_msg': 'समर्थन के लिए, हमें support@anykhata.in पर ईमेल करें',
+    'profile.support_email_msg': 'समर्थन के लिए, हमें patelom1901@gmail.com पर ईमेल करें',
+    'profile.sign_out_confirm': 'क्या आप वाकई साइन आउट करना चाहते हैं?',
     'profile.payment_success': 'भुगतान सफल! अब आप अपना व्यवसाय पंजीकृत कर सकते हैं।',
     'profile.payment_failed': 'भुगतान संसाधित नहीं किया जा सका। कृपया पुनः प्रयास करें।',
     'profile.subscription_ended_msg': 'सदस्यता समाप्त — जारी रखने के लिए नवीनीकृत करें',
@@ -330,5 +331,7 @@ export default {
     'sync.noSyncIssues': 'कोई सिंक समस्या नहीं। सभी प्रविष्टियां अद्यतित हैं।',
     'sync.discardSyncEntry': 'हटाएं',
     'sync.retrySyncEntry': 'पुनः प्रयास करें',
+
+    'Are you sure you want to sign out?': 'क्या आप वाकई साइन आउट करना चाहते हैं?',
 
   } as const;

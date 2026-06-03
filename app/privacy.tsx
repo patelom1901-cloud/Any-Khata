@@ -143,7 +143,7 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.bullet}>
             •<Text style={styles.bold}>Right to Grievance Redressal</Text> — raise a complaint with our support team.</Text>
           <Text style={styles.body}>
-            To exercise any of these rights, contact us at support@anykhata.in. We will respond
+            To exercise any of these rights, contact us at patelom1901@gmail.com. We will respond
             within 30 days.</Text>
         </View>
 
@@ -180,7 +180,7 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.body}>
             For privacy-related questions, data requests, or complaints, contact our Data
             Protection Officer at:</Text>
-          <Text style={styles.contactEmail}>support@anykhata.in</Text>
+          <Text style={styles.contactEmail}>patelom1901@gmail.com</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

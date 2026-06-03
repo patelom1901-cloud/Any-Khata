@@ -41,7 +41,8 @@ export default {
     'profile.delete_confirm': 'Are you sure you want to delete your account?',
     'profile.delete_error': 'Failed to delete account. Please try again.',
     'profile.delete_undo_msg': 'This cannot be undone.',
-    'profile.support_email_msg': 'For support, email us at support@anykhata.in',
+    'profile.support_email_msg': 'For support, email us at patelom1901@gmail.com',
+    'profile.sign_out_confirm': 'Are you sure you want to sign out?',
     'profile.payment_success': 'Payment successful! You can now register your business.',
     'profile.payment_failed': 'Payment could not be processed. Please try again.',
     'profile.subscription_ended_msg': 'Subscription ended — renew to continue',
@@ -327,5 +328,7 @@ export default {
     'sync.noSyncIssues': 'No sync issues. All entries are up to date.',
     'sync.discardSyncEntry': 'Discard',
     'sync.retrySyncEntry': 'Retry',
+
+    'Are you sure you want to sign out?': 'Are you sure you want to sign out?',
 
   } as const;

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, StatusBar, SafeAreaView, ActivityIndicator } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Input } from '../../../../../components/ui/Input';
-import { addGotEntryToDayLog } from '../../../../../lib/database';
+import { addGotEntryToDayLog, getCustomer, getBusinessById } from '../../../../../lib/database';
 import { useAuthStore } from '../../../../../store/authStore';
 import { useBusinessStore } from '../../../../../store/businessStore';
 import { isValidAmount } from '../../../../../utils/currencyUtils';
@@ -14,11 +14,34 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 export default function AddPaymentScreen() {
   const { t } = useTranslation();
   const { customerId } = useLocalSearchParams<{ customerId: string }>();
-  const business = useBusinessStore((state: { business: any }) => state.business);
+  const storeBusinesss = useBusinessStore((state: { business: any }) => state.business);
+  const setBusiness = useBusinessStore((state: { setBusiness: any }) => state.setBusiness);
   const user = useAuthStore((state: { user: any }) => state.user);
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resolvedBusiness, setResolvedBusiness] = useState<any>(storeBusinesss);
+
+  // If businessStore is empty (e.g. after app restart / deep navigation),
+  // fetch business via the customer document so we always have the businessId.
+  useEffect(() => {
+    if (resolvedBusiness) return; // already have it
+    const fetchBusiness = async () => {
+      try {
+        if (!customerId) return;
+        const customer = await getCustomer(customerId);
+        if (!customer?.businessId) return;
+        const biz = await getBusinessById(customer.businessId);
+        if (biz) {
+          setResolvedBusiness(biz);
+          setBusiness(biz); // also hydrate the store for other screens
+        }
+      } catch (e) {
+        console.log('add-payment: failed to fetch business', e);
+      }
+    };
+    fetchBusiness();
+  }, [customerId]);
 
   const handleSave = async () => {
     const parsedAmount = parseFloat(amount);
@@ -29,12 +52,12 @@ export default function AddPaymentScreen() {
     if (__DEV__) {
       console.log("RECORD_PAYMENT_DEBUG:", {
         customerId: customerId,
-        businessId: business?.businessId,
-        user: user?.uid || user?.id,
+        businessId: resolvedBusiness?.businessId,
+        userId: user?.userId || (user as any)?.$id,
         amount: parsedAmount
       });
     }
-    if (!business || !customerId || !user) {
+    if (!resolvedBusiness || !customerId || !user) {
       Alert.alert(t(`Error`), t(`Missing required data`));
       return;
     }
@@ -44,7 +67,7 @@ export default function AddPaymentScreen() {
       const userId = user.userId || (user as any).$id;
       await addGotEntryToDayLog(
         customerId,
-        business.businessId,
+        resolvedBusiness.businessId,
         parsedAmount,
         userId,
         note.trim() || undefined

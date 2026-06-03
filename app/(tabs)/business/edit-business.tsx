@@ -152,58 +152,8 @@ export default function EditBusinessScreen() {
         <Animated.View entering={FadeInDown.duration(600)} style={styles.content}>
           
           <View style={styles.card}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>{t('Business Name')}</Text>
-              <View style={styles.inputWrapper}>
-                <MaterialIcons name="store" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputPlaceholderLabel}>{t('ad_submit.business_name')}</Text>
-                  <TextInput 
-                    style={styles.input}
-                    value={businessName}
-                    onChangeText={setBusinessName}
-                    placeholder={t('e.g., Ramesh Tea Stall')}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>{t('Owner Name')}</Text>
-              <View style={styles.inputWrapper}>
-                <MaterialIcons name="person" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputPlaceholderLabel}>{t('ad_submit.owner_name')}</Text>
-                  <TextInput 
-                    style={styles.input}
-                    value={ownerName}
-                    onChangeText={setOwnerName}
-                    placeholder={t('e.g., Ramesh Kumar')}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>{t('Phone Number')}</Text>
-              <View style={styles.inputWrapper}>
-                <MaterialIcons name="phone" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputPlaceholderLabel}>{t('ad_submit.whatsapp_number')}</Text>
-                  <TextInput 
-                    style={styles.input}
-                    value={phone}
-                    onChangeText={setPhone}
-                    placeholder={t('10-digit mobile number')}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                  />
-                </View>
-              </View>
-            </View>
-
             {/* ── Store Photo Picker ── */}
-            <Text style={[styles.label, { marginTop: 8 }]}>{t('Store Photo (Optional)')}</Text>
+            <Text style={[styles.label, { marginBottom: 8 }]}>{t('Store Photo (Optional)')}</Text>
             <TouchableOpacity
               style={styles.photoPicker}
               onPress={handlePickAndUploadPhoto}
@@ -227,6 +177,50 @@ export default function EditBusinessScreen() {
                 </View>
               )}
             </TouchableOpacity>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Business Name')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="store" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.input}
+                  value={businessName}
+                  onChangeText={setBusinessName}
+                  placeholder={t('e.g., Ramesh Tea Stall')}
+                  placeholderTextColor={ThemeColors.textMuted}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Owner Name')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="person" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.input}
+                  value={ownerName}
+                  onChangeText={setOwnerName}
+                  placeholder={t('e.g., Ramesh Kumar')}
+                  placeholderTextColor={ThemeColors.textMuted}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('Phone Number')}</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="phone" size={20} color={ThemeColors.brandMid} style={styles.inputIcon} />
+                <TextInput 
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder={t('10-digit mobile number')}
+                  placeholderTextColor={ThemeColors.textMuted}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+            </View>
 
             <View style={styles.actions}>
               <TouchableOpacity 
@@ -362,25 +356,19 @@ const styles = StyleSheet.create({
     backgroundColor: ThemeColors.creamBase,
     borderRadius: Radius.md,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    height: 56,
     borderWidth: 1,
     borderColor: ThemeColors.creamBorder,
   },
   inputIcon: {
     marginRight: 12,
-  },
-  inputPlaceholderLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: 10,
-    color: ThemeColors.textMuted,
-    marginBottom: 2,
+    alignSelf: 'center',
   },
   input: {
+    flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 15,
     color: ThemeColors.textPrimary,
-    padding: 0,
-    height: 22,
   },
   actions: {
     flexDirection: 'row',

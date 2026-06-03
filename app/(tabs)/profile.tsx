@@ -54,6 +54,7 @@ export default function ProfileScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [showSyncIssuesModal, setShowSyncIssuesModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [subDates, setSubDates] = useState<{ started: string; expires: string } | null>(null);
@@ -420,7 +421,7 @@ export default function ProfileScreen() {
 
         {/* 5. Footer Actions */}
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
+          <TouchableOpacity style={styles.signOutBtn} onPress={() => setShowSignOutDialog(true)}>
             <Text style={styles.signOutText}>{t('profile.sign_out')}</Text>
           </TouchableOpacity>
 
@@ -452,6 +453,35 @@ export default function ProfileScreen() {
                 onPress={performDeleteAccount}
               >
                 <Text style={styles.dialogConfirmText}>{t('profile.delete_account')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Sign Out Dialog */}
+      {showSignOutDialog && (
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogBox}>
+            <Text style={styles.dialogTitle}>{t('common.app_name')}</Text>
+            <Text style={styles.dialogMessage}>
+              {t('Are you sure you want to sign out?')}
+            </Text>
+            <View style={styles.dialogActions}>
+              <TouchableOpacity
+                style={styles.dialogCancelBtn}
+                onPress={() => setShowSignOutDialog(false)}
+              >
+                <Text style={styles.dialogCancelText}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dialogConfirmBtn}
+                onPress={() => {
+                  setShowSignOutDialog(false);
+                  logout();
+                }}
+              >
+                <Text style={styles.dialogConfirmText}>{t('profile.sign_out')}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -5,7 +5,7 @@ import { router, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { isValidIndianPhone } from '../../utils/whatsappUtils';
 import { useAuthStore } from '../../store/authStore';
-import { createBusiness, updateBusiness } from '../../lib/database';
+import { createBusiness } from '../../lib/database';
 import { databases } from '../../lib/appwrite';
 import { DB_ID, COL_USERS } from '../../constants/appwrite';
 import { useTranslation } from "../../hooks/useTranslation";
@@ -29,15 +29,15 @@ export default function RegisterBusinessScreen() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission Required', 'Please allow access to your photo library.');
+        Alert.alert(t('Permission Required'), t('Please allow access to your photo library.'));
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.75,
+        aspect: [16, 9],
+        quality: 0.7,
       });
 
       if (result.canceled || !result.assets?.length) return;
@@ -56,17 +56,20 @@ export default function RegisterBusinessScreen() {
       const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        { method: 'POST', body: formData }
+        {
+          method: 'POST',
+          body: formData,
+        }
       );
 
       const data = await response.json();
       if (!response.ok || !data.secure_url) {
-        throw new Error(data.error?.message || 'Upload failed');
+        throw new Error(data.error?.message || t('Upload failed'));
       }
 
       setStorePhotoUrl(data.secure_url);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to upload photo');
+      Alert.alert(t('Error'), err.message || t('Failed to upload photo'));
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -94,7 +97,7 @@ export default function RegisterBusinessScreen() {
     try {
       setLoading(true);
       setError('');
-      // 1. Create the business document
+      // 1. Create the business document (store_photo_url always included)
       const newBusiness = await createBusiness({
         ownerId: user.userId,
         businessName,
@@ -103,11 +106,8 @@ export default function RegisterBusinessScreen() {
         businessType: 'Retail',
         city: '',
         state: '',
+        store_photo_url: storePhotoUrl ?? null,
       });
-      // Save store photo URL if one was uploaded
-      if (storePhotoUrl && newBusiness?.businessId) {
-        await updateBusiness(newBusiness.businessId, { store_photo_url: storePhotoUrl } as any);
-      }
       // 2. Update user document in 'users' collection with snake_case field
       try {
         await databases.updateDocument(DB_ID, COL_USERS, user.$id, {
@@ -352,6 +352,7 @@ const styles = StyleSheet.create({
   },
   inputIcon: {
     marginRight: 12,
+    alignSelf: 'center',
   },
   input: {
     flex: 1,

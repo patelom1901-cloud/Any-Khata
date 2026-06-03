@@ -41,7 +41,8 @@ export default {
     'profile.delete_confirm': 'શું તમે ખરેખર તમારું ખાતું કાઢી નાખવા માંગો છો?',
     'profile.delete_error': 'ખાતું કાઢી નાખવામાં નિષ્ફળ. કૃપા કરીને ફરી પ્રયાસ કરો.',
     'profile.delete_undo_msg': 'આ પાછું લાવી શકાશે નહીં.',
-    'profile.support_email_msg': 'સપોર્ટ માટે, અમને support@anykhata.in પર ઇમેઇલ કરો',
+    'profile.support_email_msg': 'સપોર્ટ માટે, અમને patelom1901@gmail.com પર ઇમેઇલ કરો',
+    'profile.sign_out_confirm': 'શું તમે ખરેખર સાઇન આઉટ કરવા માંગો છો?',
     'profile.payment_success': 'ચુકવણી સફળ રહી! તમે હવે તમારા વ્યવસાયની નોંધણી કરી શકો છો.',
     'profile.payment_failed': 'ચુકવણી પ્રક્રિયા થઈ શકી નથી. કૃપા કરીને ફરી પ્રયાસ કરો.',
     'profile.subscription_ended_msg': 'સબ્સ્ક્રિપ્શન સમાપ્ત થયું - ચાલુ રાખવા માટે રિન્યૂ કરો',
@@ -329,5 +330,7 @@ export default {
     'sync.noSyncIssues': 'કોઈ સિંક સમસ્યા નથી. બધી એન્ટ્રીઓ અપડેટ છે.',
     'sync.discardSyncEntry': 'કાઢી નાખો',
     'sync.retrySyncEntry': 'ફરી પ્રયાસ કરો',
+
+    'Are you sure you want to sign out?': 'શું તમે ખરેખર સાઇન આઉટ કરવા માંગો છો?',
 
   } as const;
