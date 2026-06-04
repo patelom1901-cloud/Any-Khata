@@ -21,7 +21,13 @@ export default async ({ req, res, log, error }) => {
   // DELETE ACCOUNT (path: /delete-account)
   // --------------------------------------------------------------------------
   if (req.path === '/delete-account') {
+    const requestingUserId = req.headers['x-appwrite-user-id'];
     const { userId } = body;
+
+    if (!requestingUserId || requestingUserId !== userId) {
+      return res.json({ success: false, error: 'Unauthorized' }, 401);
+    }
+
     if (!userId) {
       return res.json({ success: false, error: 'Missing userId' }, 400);
     }

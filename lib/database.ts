@@ -84,9 +84,10 @@ export const createCustomer = async (data: {
       created_at: new Date().toISOString(),
     },
     [
-      Permission.read(Role.any()),
+      Permission.read(Role.user(data.owner_id)),
+      Permission.write(Role.user(data.owner_id)),
       Permission.update(Role.user(data.owner_id)),
-      Permission.delete(Role.user(data.owner_id))
+      Permission.delete(Role.user(data.owner_id)),
     ]
   );
   return doc;
