@@ -27,6 +27,7 @@ import Animated, { FadeInDown, FadeInRight, FadeInUp, Layout } from 'react-nativ
 import { WavyHeader } from '../../components/ui/WavyHeader';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 import { Colors } from '../../constants/colors';
+import { getOptimizedImageUrl } from '../../utils/cloudinaryUtils';
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
@@ -56,7 +57,7 @@ function BusinessCard({ ad, index, onPress }: BusinessCardProps) {
       >
         {ad.image_url ? (
           <Image
-            source={ad.image_url}
+            source={getOptimizedImageUrl(ad.image_url, 400) ?? undefined}
             cachePolicy="disk"
             transition={200}
             style={styles.cardImage}

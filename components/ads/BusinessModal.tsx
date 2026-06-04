@@ -15,6 +15,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 import type { Ad } from '../../types';
+import { getOptimizedImageUrl } from '../../utils/cloudinaryUtils';
 
 interface BusinessModalProps {
   ad: Ad | null;
@@ -79,7 +80,7 @@ export function BusinessModal({ ad, onClose }: BusinessModalProps) {
           {/* Store image */}
           {ad.image_url ? (
             <Image
-              source={ad.image_url}
+              source={getOptimizedImageUrl(ad.image_url, 800) ?? undefined}
               cachePolicy="disk"
               transition={200}
               style={styles.modalImage}

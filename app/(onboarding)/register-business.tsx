@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Alert, StatusBar, SafeAreaView, Tou
 import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { isValidIndianPhone } from '../../utils/whatsappUtils';
 import { useAuthStore } from '../../store/authStore';
 import { createBusiness } from '../../lib/database';
@@ -36,8 +37,8 @@ export default function RegisterBusinessScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.7,
+        quality: 0.6,
+        exif: false,
       });
 
       if (result.canceled || !result.assets?.length) return;
@@ -45,10 +46,16 @@ export default function RegisterBusinessScreen() {
       const asset = result.assets[0];
       setIsUploadingPhoto(true);
 
+      const manipResult = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
       const formData = new FormData();
       formData.append('file', {
-        uri: asset.uri,
-        type: asset.mimeType || 'image/jpeg',
+        uri: manipResult.uri,
+        type: 'image/jpeg',
         name: asset.fileName || 'store_photo.jpg',
       } as any);
       formData.append('upload_preset', process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);

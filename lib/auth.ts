@@ -13,7 +13,6 @@ import { useAuthStore } from '../store/authStore';
 import { useBusinessStore } from '../store/businessStore';
 import { useEntryStore } from '../store/entryStore';
 import { useUIStore } from '../store/uiStore';
-import { router } from 'expo-router';
 
 const USER_STORAGE_KEY = 'anykhata_user_doc';
 
@@ -253,8 +252,6 @@ export const logout = async (): Promise<void> => {
     console.log('Failed to clear AsyncStorage keys during logout', error);
   }
 
-  // Navigate to login screen
-  router.replace('/(auth)/login');
 };
 
 /**

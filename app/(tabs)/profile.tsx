@@ -34,6 +34,7 @@ import { Ad } from '../../types';
 import { WavyHeader } from '../../components/ui/WavyHeader';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { getOptimizedImageUrl } from '../../utils/cloudinaryUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -222,7 +223,7 @@ export default function ProfileScreen() {
               <View style={styles.cardRow}>
                 <View style={styles.businessLeft}>
                   {business?.storePhotoUrl ? (
-                    <Image source={{ uri: business.storePhotoUrl }} style={styles.businessImg} />
+                    <Image source={{ uri: getOptimizedImageUrl(business.storePhotoUrl, 400) ?? undefined }} style={styles.businessImg} />
                   ) : (
                     <View style={styles.iconBox}>
                       <MaterialIcons name="store" size={24} color={ThemeColors.brandMid} />
@@ -314,7 +315,7 @@ export default function ProfileScreen() {
                       <View style={styles.businessLeft}>
                         {ad.image_url ? (
                           <ExpoImage 
-                            source={ad.image_url} 
+                            source={getOptimizedImageUrl(ad.image_url, 400) ?? undefined} 
                             cachePolicy="disk"
                             transition={200}
                             style={styles.adImg} 

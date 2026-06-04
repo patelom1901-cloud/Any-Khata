@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { Ad } from '../../types';
 import { useTranslation } from '../../hooks/useTranslation';
+import { getOptimizedImageUrl } from '../../utils/cloudinaryUtils';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
@@ -164,7 +165,7 @@ function CarouselItem({ item, index, scrollX, onPress }: { item: Ad, index: numb
         style={styles.slide}
       >
         <Image 
-          source={item.image_url}
+          source={getOptimizedImageUrl(item.image_url, 800) ?? undefined}
           cachePolicy="disk"
           transition={200}
           style={styles.image}

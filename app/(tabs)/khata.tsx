@@ -32,6 +32,7 @@ import Animated, { FadeInDown, FadeInRight, FadeInUp, Layout } from 'react-nativ
 import { WavyHeader } from '../../components/ui/WavyHeader';
 import { Colors as ThemeColors, Fonts, Radius } from '../../constants/theme';
 import { Colors } from '../../constants/colors';
+import { getOptimizedImageUrl } from '../../utils/cloudinaryUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -244,7 +245,7 @@ export default function KhataScreen() {
                       >
                         <View style={styles.cardLeft}>
                           {khata.storePhotoUrl ? (
-                            <Image source={{ uri: khata.storePhotoUrl }} style={{ width: 50, height: 50, borderRadius: 12, resizeMode: 'cover' }} />
+                            <Image source={{ uri: getOptimizedImageUrl(khata.storePhotoUrl, 400) ?? undefined }} style={{ width: 50, height: 50, borderRadius: 12, resizeMode: 'cover' }} />
                           ) : (
                             <View style={[styles.cardAvatar, { backgroundColor: ThemeColors.creamBase }]}>
                               <MaterialIcons name="storefront" size={24} color={ThemeColors.brandMid} />
