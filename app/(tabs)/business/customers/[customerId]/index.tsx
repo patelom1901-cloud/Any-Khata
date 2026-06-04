@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, softDeleteDayLogEntry, softDeleteDayLog, getOrCreateDayLog, addEntryToDayLog, getBusinessByOwner } from '@/lib/database';
+import { getCustomer, getDayLogsForCustomer, addGotEntryToDayLog, softDeleteDayLogEntry, softDeleteDayLog, getOrCreateDayLog, addEntryToDayLog, getBusinessByOwner, deleteCustomer } from '@/lib/database';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useEntryStore } from '@/store/entryStore';
@@ -188,6 +188,29 @@ export default function CustomerDetailScreen() {
     setShowWhatsAppModal(false);
   };
 
+  const handleRemoveCustomer = () => {
+    if (!customer) return;
+    Alert.alert(
+      'Remove Customer',
+      `Are you sure? This will remove ${customer.name} from your business. Their balance history will be preserved.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCustomer(customerId);
+              router.back();
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to remove customer.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) return <LoadingSpinner />;
   if (!customer) return <EmptyState message="Customer not found" icon="👤" />;
 
@@ -259,6 +282,15 @@ export default function CustomerDetailScreen() {
             ₹{totalDue.toLocaleString('en-IN')}
           </Text>
         </View>
+
+        {/* REMOVE CUSTOMER ICON */}
+        <TouchableOpacity
+          onPress={handleRemoveCustomer}
+          style={{ padding: 8, marginLeft: 8 }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MaterialIcons name="person-remove" size={22} color={ThemeColors.creditRed} />
+        </TouchableOpacity>
       </Animated.View>
 
       <FlatList

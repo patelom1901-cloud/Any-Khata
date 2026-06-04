@@ -22,7 +22,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import { useAuthStore } from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useBusinessStore } from '../../store/businessStore';
-import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveSubscription, getBusinessByOwner, getAdsByUserId } from '../../lib/database';
+import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveSubscription, getBusinessByOwner, getAdsByUserId, updateAd } from '../../lib/database';
 import { clearCachedUser } from '../../lib/auth';
 import { deleteUserAccount, createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { getFailedEntries, resetEntryForRetry, discardFailedEntry, PendingEntry } from '../../lib/offlineQueue';
@@ -127,6 +127,29 @@ export default function ProfileScreen() {
       fetchSub();
     }, [user])
   );
+
+  const handleDeleteAd = (ad: Ad) => {
+    Alert.alert(
+      'Delete Ad',
+      'Are you sure you want to delete this ad? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateAd(ad.adId, { is_deleted: true } as any);
+              setActiveAds(prev => prev.filter(a => a.adId !== ad.adId));
+              setUserAdCount(prev => prev - 1);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete ad.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handlePayment = async () => {
     try {
@@ -358,6 +381,12 @@ export default function ProfileScreen() {
                             onPress={() => router.push(`/ad-edit/${ad.adId}` as any)}
                           >
                             <MaterialIcons name="edit" size={18} color={ThemeColors.brandMid} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.adEditBtn, { marginLeft: 8 }]}
+                            onPress={() => handleDeleteAd(ad)}
+                          >
+                            <MaterialIcons name="delete-outline" size={18} color={ThemeColors.creditRed} />
                           </TouchableOpacity>
                         </View>
                       </View>

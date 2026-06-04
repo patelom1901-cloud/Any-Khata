@@ -21,13 +21,25 @@ import { useAuthStore } from '../store/authStore';
 import NetInfo from '@react-native-community/netinfo';
 import { useInterstitialAd } from '../hooks/useInterstitialAd';
 
-// Suppress Appwrite SDK network errors from RN's global handler.
-// Our code catches these — this prevents the duplicate alert.
+// Suppress Appwrite/offline network noise from RN's global handler,
+// but let all other errors through — especially fatal ones.
 const originalHandler = ErrorUtils.getGlobalHandler();
 ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
-  if (error?.message?.includes('Network request failed')) {
-    // Silently ignore — our try/catch handles these
-    return;
+  const isOfflineNoise =
+    error?.message?.includes('Network request failed') &&
+    (
+      error?.stack?.includes('appwrite') ||
+      error?.stack?.includes('offlineQueue') ||
+      error?.stack?.includes('syncWorker') ||
+      !isFatal
+    );
+
+  if (isOfflineNoise) return;
+
+  // Let all other errors through — especially fatal ones
+  if (isFatal) {
+    // Log fatal errors before passing to the original handler
+    console.error('Fatal error:', error);
   }
   originalHandler(error, isFatal);
 });

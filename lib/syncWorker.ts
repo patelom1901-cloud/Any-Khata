@@ -96,6 +96,7 @@ export const runSync = async () => {
             {
               customer_id: entry.customer_id,
               business_id: entry.business_id,
+              owner_id: entry.user_id,
               amount: Number(entry.amount) || 0,
               type: entry.type,
               date: entry.date,
@@ -107,6 +108,7 @@ export const runSync = async () => {
             },
             [
               Permission.read(Role.user(entry.user_id)),
+              Permission.write(Role.user(entry.user_id)),
               Permission.update(Role.user(entry.user_id)),
               Permission.delete(Role.user(entry.user_id))
             ]

@@ -261,6 +261,7 @@ export const getOrCreateDayLog = async (
     {
       business_id: businessId,
       customer_id: customerId,
+      owner_id: ownerId,
       date: today,
       entries: serializeEntries([]),
       day_total: 0,
@@ -268,6 +269,7 @@ export const getOrCreateDayLog = async (
     },
     [
       Permission.read(Role.user(ownerId)),
+      Permission.write(Role.user(ownerId)),
       Permission.update(Role.user(ownerId)),
       Permission.delete(Role.user(ownerId))
     ]
@@ -834,6 +836,7 @@ export const upsertTodayDayLog = async (
       {
         customer_id: customerId,
         business_id: businessId,
+        owner_id: ownerId,
         amount: Number(entry.amount) || 0,
         type: entry.type,
         date: today,
@@ -845,6 +848,7 @@ export const upsertTodayDayLog = async (
       },
       [
         Permission.read(Role.user(ownerId)),
+        Permission.write(Role.user(ownerId)),
         Permission.update(Role.user(ownerId)),
         Permission.delete(Role.user(ownerId))
       ]
