@@ -22,7 +22,8 @@ import { makeRedirectUri } from 'expo-auth-session';
 import { useAuthStore } from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useBusinessStore } from '../../store/businessStore';
-import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveSubscription, getBusinessByOwner, getAdsByUserId, updateAd } from '../../lib/database';
+import { checkBusinessSubscriptionStatus, createBusinessSubscription, getActiveSubscription, getBusinessByOwner, getAdsByUserId, updateAd, deleteBusinessWithCascade } from '../../lib/database';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { clearCachedUser } from '../../lib/auth';
 import { deleteUserAccount, createCashfreeOrder, verifyCashfreePayment } from '../../lib/functions';
 import { getFailedEntries, resetEntryForRetry, discardFailedEntry, PendingEntry } from '../../lib/offlineQueue';
@@ -62,6 +63,13 @@ export default function ProfileScreen() {
   const [activeAds, setActiveAds] = useState<Ad[]>([]);
   const [userAdCount, setUserAdCount] = useState<number>(0);
   const [failedEntries, setFailedEntries] = useState<PendingEntry[]>([]);
+
+  // Business delete confirmation modal
+  const [showDeleteBusiness, setShowDeleteBusiness] = useState(false);
+  const [deletingBusiness, setDeletingBusiness] = useState(false);
+
+  // Ad delete confirmation modal
+  const [adPendingDelete, setAdPendingDelete] = useState<Ad | null>(null);
 
   // Avatar Logic
   const avatarUrl = useMemo(() => {
@@ -129,26 +137,45 @@ export default function ProfileScreen() {
   );
 
   const handleDeleteAd = (ad: Ad) => {
-    Alert.alert(
-      'Delete Ad',
-      'Are you sure you want to delete this ad? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await updateAd(ad.adId, { is_deleted: true } as any);
-              setActiveAds(prev => prev.filter(a => a.adId !== ad.adId));
-              setUserAdCount(prev => prev - 1);
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete ad.');
-            }
-          },
-        },
-      ]
-    );
+    // Open styled confirmation modal instead of native Alert
+    setAdPendingDelete(ad);
+  };
+
+  const confirmDeleteAd = async () => {
+    if (!adPendingDelete) return;
+    const ad = adPendingDelete;
+    setAdPendingDelete(null);
+    try {
+      await updateAd(ad.adId, { is_deleted: true } as any);
+      setActiveAds(prev => prev.filter(a => a.adId !== ad.adId));
+      setUserAdCount(prev => prev - 1);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to delete ad.');
+    }
+  };
+
+  const handleDeleteBusiness = () => {
+    setShowDeleteBusiness(true);
+  };
+
+  const { clearBusiness } = useBusinessStore();
+  const { setHasBusiness } = useAuthStore();
+
+  const confirmDeleteBusiness = async () => {
+    if (!business || !user) return;
+    setShowDeleteBusiness(false);
+    setDeletingBusiness(true);
+    try {
+      await deleteBusinessWithCascade(business.businessId, user.userId);
+      // Clear Zustand business store (business + customers + subscription flag)
+      clearBusiness();
+      // Clear authStore hasBusiness flag so home screen hides FAB immediately
+      setHasBusiness(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to delete business.');
+    } finally {
+      setDeletingBusiness(false);
+    }
   };
 
   const handlePayment = async () => {
@@ -265,12 +292,21 @@ export default function ProfileScreen() {
                       </Text>
                     </View>
                   )}
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={() => router.push('/(tabs)/business/edit-business' as any)}
-                  >
-                    <MaterialIcons name="edit" size={20} color={ThemeColors.brandMid} />
-                  </TouchableOpacity>
+                  <View style={styles.businessIconRow}>
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={() => router.push('/(tabs)/business/edit-business' as any)}
+                    >
+                      <MaterialIcons name="edit" size={20} color={ThemeColors.brandMid} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.editButton, { marginLeft: 6 }]}
+                      onPress={handleDeleteBusiness}
+                      disabled={deletingBusiness}
+                    >
+                      <MaterialIcons name="delete-outline" size={20} color={ThemeColors.creditRed} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
 
@@ -463,60 +499,49 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Delete Dialog */}
-      {showDeleteDialog && (
-        <View style={styles.dialogOverlay}>
-          <View style={styles.dialogBox}>
-            <Text style={styles.dialogTitle}>{t('common.app_name')}</Text>
-            <Text style={styles.dialogMessage}>
-              {t('profile.delete_confirm')} {t('profile.delete_undo_msg')}
-            </Text>
-            <View style={styles.dialogActions}>
-              <TouchableOpacity
-                style={styles.dialogCancelBtn}
-                onPress={() => setShowDeleteDialog(false)}
-              >
-                <Text style={styles.dialogCancelText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dialogConfirmBtn}
-                onPress={performDeleteAccount}
-              >
-                <Text style={styles.dialogConfirmText}>{t('profile.delete_account')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      {/* Delete Account Dialog */}
+      <ConfirmModal
+        visible={showDeleteDialog}
+        title={t('common.app_name')}
+        message={`${t('profile.delete_confirm')} ${t('profile.delete_undo_msg')}`}
+        confirmText={t('profile.delete_account')}
+        onConfirm={performDeleteAccount}
+        onCancel={() => setShowDeleteDialog(false)}
+        dangerous
+      />
 
       {/* Sign Out Dialog */}
-      {showSignOutDialog && (
-        <View style={styles.dialogOverlay}>
-          <View style={styles.dialogBox}>
-            <Text style={styles.dialogTitle}>{t('common.app_name')}</Text>
-            <Text style={styles.dialogMessage}>
-              {t('Are you sure you want to sign out?')}
-            </Text>
-            <View style={styles.dialogActions}>
-              <TouchableOpacity
-                style={styles.dialogCancelBtn}
-                onPress={() => setShowSignOutDialog(false)}
-              >
-                <Text style={styles.dialogCancelText}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dialogConfirmBtn}
-                onPress={() => {
-                  setShowSignOutDialog(false);
-                  logout();
-                }}
-              >
-                <Text style={styles.dialogConfirmText}>{t('profile.sign_out')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      <ConfirmModal
+        visible={showSignOutDialog}
+        title={t('common.app_name')}
+        message={t('Are you sure you want to sign out?')}
+        confirmText={t('profile.sign_out')}
+        onConfirm={() => { setShowSignOutDialog(false); logout(); }}
+        onCancel={() => setShowSignOutDialog(false)}
+        dangerous={false}
+      />
+
+      {/* Delete Business Dialog */}
+      <ConfirmModal
+        visible={showDeleteBusiness}
+        title="Delete Business"
+        message="This will permanently remove your business and all customers from Any Khata. Their ledger history will be preserved. This cannot be undone."
+        confirmText="Delete Business"
+        onConfirm={confirmDeleteBusiness}
+        onCancel={() => setShowDeleteBusiness(false)}
+        dangerous
+      />
+
+      {/* Delete Ad Dialog */}
+      <ConfirmModal
+        visible={adPendingDelete !== null}
+        title="Delete Ad"
+        message="Are you sure you want to delete this ad? It will be removed from the Advertisements screen immediately."
+        confirmText="Delete Ad"
+        onConfirm={confirmDeleteAd}
+        onCancel={() => setAdPendingDelete(null)}
+        dangerous
+      />
 
       {/* Language Modal */}
       <Modal visible={showLanguageModal} transparent animationType="slide">
@@ -786,6 +811,11 @@ const styles = StyleSheet.create({
     backgroundColor: ThemeColors.creamBase,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 10,
+  },
+  businessIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 10,
   },
   adActionRow: {

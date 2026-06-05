@@ -34,6 +34,7 @@ import { DraggableDeletionWrapper } from '@/components/DraggableDeletionWrapper'
 import * as Clipboard from 'expo-clipboard';
 import { useBusinessStore } from '@/store/businessStore';
 import { useAuthStore } from '@/store/authStore';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 const { width } = Dimensions.get('window');
 
@@ -67,6 +68,9 @@ export default function CustomerDetailScreen() {
   const [dustbinLayout, setDustbinLayout] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   const [shatteringCard, setShatteringCard] = useState<{ layout: { x: number, y: number, width: number, height: number }, color: string } | null>(null);
   const lastActiveLayout = useRef<{ x: number, y: number, width: number, height: number } | null>(null);
+
+  // Remove Customer confirmation modal
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!customerId) return;
@@ -190,25 +194,17 @@ export default function CustomerDetailScreen() {
 
   const handleRemoveCustomer = () => {
     if (!customer) return;
-    Alert.alert(
-      'Remove Customer',
-      `Are you sure? This will remove ${customer.name} from your business. Their balance history will be preserved.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteCustomer(customerId);
-              router.back();
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to remove customer.');
-            }
-          },
-        },
-      ]
-    );
+    setShowRemoveModal(true);
+  };
+
+  const confirmRemoveCustomer = async () => {
+    setShowRemoveModal(false);
+    try {
+      await deleteCustomer(customerId);
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to remove customer.');
+    }
   };
 
   if (loading) return <LoadingSpinner />;
@@ -499,6 +495,17 @@ export default function CustomerDetailScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Remove Customer Confirmation Modal */}
+      <ConfirmModal
+        visible={showRemoveModal}
+        title="Remove Customer"
+        message={`This will remove ${customer?.name ?? 'this customer'} from your business. Their balance history will be preserved.`}
+        confirmText="Remove Customer"
+        onConfirm={confirmRemoveCustomer}
+        onCancel={() => setShowRemoveModal(false)}
+        dangerous
+      />
 
 
     </SafeAreaView>

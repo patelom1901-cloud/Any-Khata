@@ -432,6 +432,36 @@ export const createBusiness = async (data: {
   state: string;
   store_photo_url?: string | null;
 }): Promise<Business> => {
+  // Upsert: check if this owner already has a business (including soft-deleted)
+  const existing = await databases.listDocuments(DB_ID, COL_BUSINESSES, [
+    Query.equal('owner_id', data.ownerId),
+    Query.orderDesc('$createdAt'),
+    Query.limit(1),
+  ]);
+
+  if (existing.documents.length > 0) {
+    // Reactivate the existing business with new data
+    const existingDoc = existing.documents[0];
+    const doc = await databases.updateDocument(
+      DB_ID,
+      COL_BUSINESSES,
+      existingDoc.$id,
+      {
+        business_name: data.businessName,
+        owner_name: data.ownerName,
+        phone: data.phone,
+        business_type: data.businessType,
+        city: data.city,
+        state: data.state,
+        store_photo_url: data.store_photo_url || null,
+        is_active: true,
+        is_deleted: false,
+      }
+    );
+    return doc as unknown as Business;
+  }
+
+  // No existing business found — create a new one
   const doc = await databases.createDocument(
     DB_ID,
     COL_BUSINESSES,
@@ -464,6 +494,38 @@ export const updateBusiness = async (
 ): Promise<Business> => {
   const doc = await databases.updateDocument(DB_ID, COL_BUSINESSES, businessId, updates as any);
   return doc as unknown as Business;
+};
+
+/**
+ * Soft-delete a business and cascade-soft-delete all its customers.
+ *
+ * Rules:
+ *  - Soft delete ONLY (is_deleted: true) — no deleteDocument calls on business/customer data.
+ *  - Customer soft-deletes run in parallel via Promise.all (not sequentially).
+ *  - day_logs are intentionally NOT touched — financial history is preserved.
+ */
+export const deleteBusinessWithCascade = async (
+  businessId: string,
+  ownerId: string
+): Promise<void> => {
+  // 1. Soft-delete the business itself
+  await databases.updateDocument(DB_ID, COL_BUSINESSES, businessId, { is_deleted: true });
+
+  // 2. Query all active customers for this business
+  const customersRes = await databases.listDocuments(DB_ID, COL_CUSTOMERS, [
+    Query.equal('business_id', businessId),
+    Query.notEqual('is_deleted', true),
+    Query.limit(100),
+  ]);
+
+  // 3. Soft-delete all customers in parallel
+  if (customersRes.documents.length > 0) {
+    await Promise.all(
+      customersRes.documents.map((cDoc: any) =>
+        databases.updateDocument(DB_ID, COL_CUSTOMERS, cDoc.$id, { is_deleted: true })
+      )
+    );
+  }
 };
 
 /**
@@ -637,6 +699,41 @@ export const createAd = async (data: {
   if (data.website_url) payload.website_url = data.website_url;
   if (data.maps_url) payload.maps_url = data.maps_url;
 
+  // Upsert: check if there's a soft-deleted ad we can reuse
+  const deletedAds = await databases.listDocuments(DB_ID, COL_ADS, [
+    Query.equal('user_id', currentUserId),
+    Query.equal('is_deleted', true),
+    Query.orderAsc('$createdAt'),
+    Query.limit(1),
+  ]);
+
+  if (deletedAds.documents.length > 0) {
+    // Reactivate the soft-deleted ad with new data
+    const existingDoc = deletedAds.documents[0];
+    const doc = await databases.updateDocument(
+      DB_ID,
+      COL_ADS,
+      existingDoc.$id,
+      payload
+    );
+    return {
+      adId: doc.$id,
+      user_id: (doc as any).user_id || '',
+      business_name: (doc as any).business_name,
+      owner_name: (doc as any).owner_name,
+      phone: (doc as any).phone,
+      image_file_id: (doc as any).image_file_id,
+      image_url: (doc as any).image_url,
+      subscriptionStatus: (doc as any).subscriptionStatus,
+      subscription_expiry: (doc as any).subscription_expiry,
+      created_at: (doc as any).created_at,
+      gstin: (doc as any).gstin || '',
+      website_url: (doc as any).website_url || '',
+      maps_url: (doc as any).maps_url || '',
+    } as unknown as Ad;
+  }
+
+  // No deleted ad to reuse — create a new one
   const doc = await databases.createDocument(
     DB_ID,
     COL_ADS,
