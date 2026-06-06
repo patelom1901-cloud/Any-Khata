@@ -25,8 +25,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anykhata.app",
-      "permissions": [],
-      "googleMobileAdsAppId": "ca-app-pub-6023840028537006~8324267639"
+      "permissions": []
     },
     "plugins": [
       "expo-router",
