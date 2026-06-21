@@ -120,7 +120,12 @@ export default function ProfileScreen() {
           } else {
             setSubDates(null);
           }
-          if (fetchedBusiness) setBusiness(fetchedBusiness);
+          if (fetchedBusiness) {
+            setBusiness(fetchedBusiness);
+          } else {
+            setBusiness(null);
+            setHasBusiness(false);
+          }
           const adsArray = Array.isArray(adsResult) ? adsResult : [];
           setActiveAds(adsArray);
           setUserAdCount(adsArray.length);

@@ -352,6 +352,7 @@ export const removeEntryFromDayLog = async (
 export const getBusinessByOwner = async (ownerId: string): Promise<Business | null> => {
   const res = await databases.listDocuments(DB_ID, COL_BUSINESSES, [
     Query.equal('owner_id', ownerId),
+    Query.equal('is_deleted', false),
     Query.orderDesc('$createdAt'),
     Query.limit(1),
   ]);

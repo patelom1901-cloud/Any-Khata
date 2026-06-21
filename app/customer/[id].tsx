@@ -79,12 +79,23 @@ export default function CustomerLedgerScreen() {
   const fetchDayLogs = useCallback(async (customerId: string) => {
     try {
       const logs = await getDayLogsForCustomer(undefined, customerId);
-      setDayLogs(logs);
+      const filtered = logs.map((log: any) => ({
+        ...log,
+        entries: (log.entries || []).filter((e: any) => !e.is_deleted),
+      }));
+      setDayLogs(filtered);
       await AsyncStorage.setItem(`@daylogs_${customerId}`, JSON.stringify(logs));
     } catch (err) {
       console.log('[fetchDayLogs] Failed to fetch, falling back to cache');
       const cached = await AsyncStorage.getItem(`@daylogs_${customerId}`);
-      if (cached) setDayLogs(JSON.parse(cached));
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const filtered = parsed.map((log: any) => ({
+          ...log,
+          entries: (log.entries || []).filter((e: any) => !e.is_deleted),
+        }));
+        setDayLogs(filtered);
+      }
     }
   }, []);
 

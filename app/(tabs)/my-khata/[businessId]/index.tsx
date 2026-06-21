@@ -80,7 +80,7 @@ export default function CustomerLedgerScreen() {
   let totalBilled = 0;
   let totalPaid = 0;
   dayLogs.forEach(log => {
-    log.entries.forEach(entry => {
+    log.entries.filter((entry: any) => !entry.is_deleted).forEach(entry => {
       if (entry.type === 'gave') totalBilled += entry.amount;
       if (entry.type === 'got') totalPaid += entry.amount;
     });
