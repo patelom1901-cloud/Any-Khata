@@ -93,7 +93,6 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-linking",
       "expo-sqlite",
       [
         "expo-build-properties",
