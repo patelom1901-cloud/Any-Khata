@@ -5,7 +5,7 @@ import { logout as authLogout, getOrCreateUserDoc, getAuthUser } from '../lib/au
 import { useUIStore } from '../store/uiStore';
 import { account } from '../lib/appwrite';
 import { OAuthProvider } from 'react-native-appwrite';
-import { makeRedirectUri } from 'expo-auth-session';
+
 import * as Linking from 'expo-linking';
 import { useURL } from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -113,7 +113,7 @@ export const useAuth = () => {
         console.log('[loginWithGoogle] No existing session to delete (expected for new users).');
       }
 
-      const redirectUri = makeRedirectUri({});
+      const redirectUri = 'anykhata://';
       console.log('[loginWithGoogle] redirectUri:', redirectUri);
       // createOAuth2Token returns a URL — we must open it ourselves
       const oauthUrl = await account.createOAuth2Token(
