@@ -113,7 +113,7 @@ export const useAuth = () => {
         console.log('[loginWithGoogle] No existing session to delete (expected for new users).');
       }
 
-      const redirectUri = Linking.createURL('/');
+      const redirectUri = 'appwrite-callback-69d35dc3003206488082://';
       console.log('[loginWithGoogle] redirectUri:', redirectUri);
       // createOAuth2Token returns a URL — we must open it ourselves
       const oauthUrl = await account.createOAuth2Token(

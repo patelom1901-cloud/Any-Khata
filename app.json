@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/anykhatalogo.png",
     "userInterfaceStyle": "light",
-    "scheme": "anykhata",
+    "scheme": ["anykhata", "appwrite-callback-69d35dc3003206488082"],
     "jsEngine": "hermes",
     "splash": {
       "image": "./assets/splash-icon.png",
