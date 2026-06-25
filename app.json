@@ -79,7 +79,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/Any Khata logo.png",
         "backgroundColor": "#D6E6F5"
