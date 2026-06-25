@@ -36,7 +36,7 @@ try {
 export const loginWithGoogle = async (): Promise<void> => {
   // Linking.createURL('/') gives exp://IP:PORT/ in Expo Go,
   // and anykhata:/// in a standalone build — both work with Appwrite.
-  const redirectUri = 'appwrite-callback-69d35dc3003206488082://';
+  const redirectUri = 'appwrite-callback-69d35dc3003206488082://com.anykhata.app';
   let authUrl: URL | string | void;
   try {
     authUrl = await account.createOAuth2Token(
