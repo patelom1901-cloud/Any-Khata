@@ -7,7 +7,6 @@ import { account } from '../lib/appwrite';
 import { OAuthProvider } from 'react-native-appwrite';
 
 import * as Linking from 'expo-linking';
-import { useURL } from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 /**
@@ -20,81 +19,109 @@ export const useAuth = () => {
   
   const [loading, setLoading] = useState(false);
   const handledUrl = useRef<string | null>(null);
-  const url = useURL();
 
-  // Handle the deep link callback AFTER browser closes
-  useEffect(() => {
-    if (__DEV__) {
-      console.log('=== AUTH CALLBACK FIRED === url:', url);
-    }
-    if (!url) {
-      console.log('[useAuth] useEffect: url is null/undefined, skipping');
-      return;
-    }
-    if (handledUrl.current === url) {
+  // Shared handler: parse any incoming URL and finalize login if it carries userId+secret.
+  // Used by both Linking.addEventListener (foreground) and Linking.getInitialURL (cold-start).
+  const processOAuthUrl = useCallback(
+    async (url: string | null) => {
+      if (!url) return;
+
       if (__DEV__) {
-        console.log('[useAuth] useEffect: url already handled, skipping double-fire:', url);
+        console.log('=== AUTH CALLBACK FIRED === url:', url);
       }
-      return;
-    }
-    handledUrl.current = url;
 
-    const parsed = Linking.parse(url);
-    const secret = parsed.queryParams?.secret as string;
-    const userId = parsed.queryParams?.userId as string;
-    if (__DEV__) {
-      console.log('[useAuth] Parsed URL params — userId:', userId, 'secret present:', !!secret);
-    }
-
-    if (secret && userId) {
-      const finalizeLogin = async () => {
-        try {
-          if (__DEV__) {
-            console.log('Step 1 - Creating session with userId:', userId);
-          }
-          setLoading(true);
-          setStoreLoading(true);
-          await account.createSession(userId, secret);
-          console.log('Step 1 - createSession() succeeded');
-
-          console.log('Step 2 - Getting auth user (account.get())...');
-          const authUser = await getAuthUser();
-          if (__DEV__) {
-            console.log('Step 2 - Session/Account result:', JSON.stringify(authUser));
-          }
-          if (!authUser) {
-            throw new Error('Could not retrieve authenticated user after login.');
-          }
-
-          if (__DEV__) {
-            console.log('Step 3 - Fetching user document for ID:', authUser.$id);
-          }
-          // Delegate user doc creation to lib/auth.ts (single source of truth)
-          const userDoc = await getOrCreateUserDoc(authUser);
-          if (__DEV__) {
-            console.log('Step 4 - User doc result:', JSON.stringify(userDoc));
-          }
-          setUser(userDoc);
-          // setUser already sets hasBusiness in the store based on userDoc.has_business
-          // Always go to home after login — no registration gate
-          console.log('Step 5 - Navigating to: /(tabs)/home');
-          router.replace('/(tabs)/home');
-        } catch (err: any) {
-          if (__DEV__) {
-            console.log('=== CAUGHT ERROR (finalizeLogin) ===', JSON.stringify(err), 'message:', err?.message);
-          }
-          setError(err?.message || 'Login finalizing failed');
-        } finally {
-          setLoading(false);
-          setStoreLoading(false);
+      if (handledUrl.current === url) {
+        if (__DEV__) {
+          console.log('[useAuth] processOAuthUrl: url already handled, skipping double-fire:', url);
         }
-      };
+        return;
+      }
+      handledUrl.current = url;
 
-      finalizeLogin();
-    } else {
-      console.log('[useAuth] useEffect: URL has no userId+secret — not an OAuth callback. Skipping.');
-    }
-  }, [url, setUser, setStoreLoading, setError]);
+      const parsed = Linking.parse(url);
+      const secret = parsed.queryParams?.secret as string;
+      const userId = parsed.queryParams?.userId as string;
+
+      if (__DEV__) {
+        console.log('[useAuth] Parsed URL params — userId:', userId, 'secret present:', !!secret);
+      }
+
+      if (!secret || !userId) {
+        console.log('[useAuth] processOAuthUrl: URL has no userId+secret — not an OAuth callback. Skipping.');
+        return;
+      }
+
+      try {
+        if (__DEV__) {
+          console.log('Step 1 - Creating session with userId:', userId);
+        }
+        setLoading(true);
+        setStoreLoading(true);
+        await account.createSession(userId, secret);
+        console.log('Step 1 - createSession() succeeded');
+
+        console.log('Step 2 - Getting auth user (account.get())...');
+        const authUser = await getAuthUser();
+        if (__DEV__) {
+          console.log('Step 2 - Session/Account result:', JSON.stringify(authUser));
+        }
+        if (!authUser) {
+          throw new Error('Could not retrieve authenticated user after login.');
+        }
+
+        if (__DEV__) {
+          console.log('Step 3 - Fetching user document for ID:', authUser.$id);
+        }
+        // Delegate user doc creation to lib/auth.ts (single source of truth)
+        const userDoc = await getOrCreateUserDoc(authUser);
+        if (__DEV__) {
+          console.log('Step 4 - User doc result:', JSON.stringify(userDoc));
+        }
+        setUser(userDoc);
+        // setUser already sets hasBusiness in the store based on userDoc.has_business
+        // Always go to home after login — no registration gate
+        console.log('Step 5 - Navigating to: /(tabs)/home');
+        router.replace('/(tabs)/home');
+      } catch (err: any) {
+        if (__DEV__) {
+          console.log('=== CAUGHT ERROR (finalizeLogin) ===', JSON.stringify(err), 'message:', err?.message);
+        }
+        setError(err?.message || 'Login finalizing failed');
+      } finally {
+        setLoading(false);
+        setStoreLoading(false);
+      }
+    },
+    [setUser, setStoreLoading, setError]
+  );
+
+  // COLD-START / Android-killed relaunch: if the app was reopened by the deep link,
+  // getInitialURL() returns the URL that launched it. Process it once on mount.
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      if (__DEV__) {
+        console.log('[useAuth] getInitialURL result:', url);
+      }
+      processOAuthUrl(url);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // FOREGROUND: listen for ALL incoming URLs regardless of scheme.
+  // This catches 'appwrite-callback-<projectId>://...' which useURL() misses
+  // because Expo's useURL() is scoped to the first scheme in app.json.
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (__DEV__) {
+        console.log('[useAuth] Linking.addEventListener fired — url:', url);
+      }
+      processOAuthUrl(url);
+    });
+
+    return () => {
+      subscription.remove(); // cleanup on unmount — prevents memory leaks
+    };
+  }, [processOAuthUrl]);
 
   const loginWithGoogle = async () => {
     console.log('[loginWithGoogle] Login button pressed. loading:', loading);
@@ -141,7 +168,7 @@ export const useAuth = () => {
         setLoading(false);
         setStoreLoading(false);
       }
-      // If success → useEffect above handles session creation via useURL()
+      // If success → Linking.addEventListener above catches the callback URL and finalizes the session
 
     } catch (e: any) {
       if (__DEV__) {
