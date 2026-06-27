@@ -7,7 +7,6 @@ import { account } from '../lib/appwrite';
 import { OAuthProvider } from 'react-native-appwrite';
 
 import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 
 /**
  * Hook for auth operations
@@ -155,20 +154,8 @@ export const useAuth = () => {
       if (!oauthUrl) {
         throw new Error('Failed to create OAuth token URL');
       }
-      console.log('[loginWithGoogle] Opening WebBrowser...');
-      const result = await WebBrowser.openAuthSessionAsync(
-        oauthUrl.toString(),
-        redirectUri
-      );
-      if (__DEV__) {
-        console.log('[loginWithGoogle] WebBrowser result type:', result.type, 'full result:', JSON.stringify(result));
-      }
-      if (result.type !== 'success') {
-        console.log('[loginWithGoogle] Browser closed without success — type was:', result.type);
-        setLoading(false);
-        setStoreLoading(false);
-      }
-      // If success → Linking.addEventListener above catches the callback URL and finalizes the session
+      console.log('[loginWithGoogle] Opening via Linking.openURL...');
+      await Linking.openURL(oauthUrl.toString());
 
     } catch (e: any) {
       if (__DEV__) {
