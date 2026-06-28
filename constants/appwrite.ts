@@ -17,8 +17,10 @@ function envOrDefault(key: string, fallback: string): string {
   return value;
 }
 
-export const APPWRITE_ENDPOINT = envOrDefault('EXPO_PUBLIC_APPWRITE_ENDPOINT', 'https://sgp.cloud.appwrite.io/v1');
-export const APPWRITE_PROJECT_ID = envOrDefault('EXPO_PUBLIC_APPWRITE_PROJECT_ID', '');
+export const APPWRITE_ENDPOINT = process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT 
+  || 'https://sgp.cloud.appwrite.io/v1';
+export const APPWRITE_PROJECT_ID = process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID 
+  || '69d35dc3003206488082';
 
 export const DB_ID = envOrDefault('EXPO_PUBLIC_APPWRITE_DB_ID', 'any_khata_db');
 

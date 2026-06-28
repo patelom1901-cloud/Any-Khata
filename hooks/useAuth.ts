@@ -45,9 +45,12 @@ export const useAuth = () => {
       console.log('[loginWithGoogle] Got idToken, calling Cloud Function...');
 
       // 3. POST idToken to Cloud Function
-      const endpoint = process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT;
-      const projectId = process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID;
-      const functionId = process.env.EXPO_PUBLIC_CLOUD_FUNCTION_ID;
+      const endpoint = process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT 
+        || 'https://sgp.cloud.appwrite.io/v1';
+      const projectId = process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID 
+        || '69d35dc3003206488082';
+      const functionId = process.env.EXPO_PUBLIC_CLOUD_FUNCTION_ID 
+        || '69eddd030019b0cbe31f';
 
       const execResponse = await fetch(
         `${endpoint}/functions/${functionId}/executions`,

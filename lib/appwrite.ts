@@ -4,7 +4,10 @@
  * NEVER create new Client instances elsewhere.
  */
 import { Client, Account, Databases, Storage, Functions } from 'react-native-appwrite';
-import { APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID } from '../constants/appwrite';
+const APPWRITE_ENDPOINT = process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT 
+  || 'https://sgp.cloud.appwrite.io/v1';
+const APPWRITE_PROJECT_ID = process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID 
+  || '69d35dc3003206488082';
 
 const client = new Client()
   .setEndpoint(APPWRITE_ENDPOINT)
