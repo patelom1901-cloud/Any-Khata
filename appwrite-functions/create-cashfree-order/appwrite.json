@@ -2,7 +2,7 @@
   "$schema": "https://appwrite.io/schemas/function.json",
   "name": "create-cashfree-order",
   "runtime": "node-22.0",
-  "execute": [],
+  "execute": ["any"],
   "events": [],
   "schedule": "",
   "timeout": 30,

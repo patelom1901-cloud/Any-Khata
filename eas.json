@@ -11,12 +11,40 @@
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_APPWRITE_ENDPOINT": "https://sgp.cloud.appwrite.io/v1",
+        "EXPO_PUBLIC_APPWRITE_PROJECT_ID": "69d35dc3003206488082",
+        "EXPO_PUBLIC_APPWRITE_DB_ID": "any_khata_db",
+        "EXPO_PUBLIC_COL_USERS": "users",
+        "EXPO_PUBLIC_COL_BUSINESSES": "businesses",
+        "EXPO_PUBLIC_COL_CUSTOMERS": "customers",
+        "EXPO_PUBLIC_COL_DAY_LOGS": "day_logs",
+        "EXPO_PUBLIC_COL_ADS": "ads",
+        "EXPO_PUBLIC_COL_SUBSCRIPTIONS": "subscriptions",
+        "EXPO_PUBLIC_COL_PAYMENT_ORDERS": "payments",
+        "EXPO_PUBLIC_APPWRITE_AD_BUCKET_ID": "ad_images",
+        "EXPO_PUBLIC_CLOUD_FUNCTION_ID": "69eddd030019b0cbe31f"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_APPWRITE_ENDPOINT": "https://sgp.cloud.appwrite.io/v1",
+        "EXPO_PUBLIC_APPWRITE_PROJECT_ID": "69d35dc3003206488082",
+        "EXPO_PUBLIC_APPWRITE_DB_ID": "any_khata_db",
+        "EXPO_PUBLIC_COL_USERS": "users",
+        "EXPO_PUBLIC_COL_BUSINESSES": "businesses",
+        "EXPO_PUBLIC_COL_CUSTOMERS": "customers",
+        "EXPO_PUBLIC_COL_DAY_LOGS": "day_logs",
+        "EXPO_PUBLIC_COL_ADS": "ads",
+        "EXPO_PUBLIC_COL_SUBSCRIPTIONS": "subscriptions",
+        "EXPO_PUBLIC_COL_PAYMENT_ORDERS": "payments",
+        "EXPO_PUBLIC_APPWRITE_AD_BUCKET_ID": "ad_images",
+        "EXPO_PUBLIC_CLOUD_FUNCTION_ID": "69eddd030019b0cbe31f"
       }
     }
   },
