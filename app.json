@@ -9,8 +9,8 @@
     "scheme": ["anykhata"],
     "jsEngine": "hermes",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "cover",
+      "image": "./assets/anykhatalogo.png",
+      "resizeMode": "contain",
       "backgroundColor": "#FAF4EE"
     },
     "ios": {
