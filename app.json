@@ -4,7 +4,7 @@
     "slug": "any-khata",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/anykhatalogo.png",
+    "icon": "./assets/anykhatalogo_resized_75.png",
     "userInterfaceStyle": "light",
     "scheme": ["anykhata"],
     "jsEngine": "hermes",
@@ -81,7 +81,7 @@
     "android": {
       "versionCode": 4,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/Any Khata logo.png",
+        "foregroundImage": "./assets/anykhatalogo_resized_75.png",
         "backgroundColor": "#D6E6F5"
       },
       "edgeToEdgeEnabled": true,
