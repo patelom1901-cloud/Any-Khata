@@ -24,7 +24,9 @@
         "EXPO_PUBLIC_COL_SUBSCRIPTIONS": "subscriptions",
         "EXPO_PUBLIC_COL_PAYMENT_ORDERS": "payments",
         "EXPO_PUBLIC_APPWRITE_AD_BUCKET_ID": "ad_images",
-        "EXPO_PUBLIC_CLOUD_FUNCTION_ID": "69eddd030019b0cbe31f"
+        "EXPO_PUBLIC_CLOUD_FUNCTION_ID": "69eddd030019b0cbe31f",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dmqkhepuw",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "any_khata_uploads"
       }
     },
     "production": {
@@ -44,7 +46,9 @@
         "EXPO_PUBLIC_COL_SUBSCRIPTIONS": "subscriptions",
         "EXPO_PUBLIC_COL_PAYMENT_ORDERS": "payments",
         "EXPO_PUBLIC_APPWRITE_AD_BUCKET_ID": "ad_images",
-        "EXPO_PUBLIC_CLOUD_FUNCTION_ID": "69eddd030019b0cbe31f"
+        "EXPO_PUBLIC_CLOUD_FUNCTION_ID": "69eddd030019b0cbe31f",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dmqkhepuw",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "any_khata_uploads"
       }
     }
   },

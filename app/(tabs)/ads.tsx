@@ -114,22 +114,13 @@ export default function AdsScreen() {
       >
         {/* 1. WAVY HEADER */}
         <WavyHeader>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <View>
-              <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textOnDark }}>
-                {t('ads.title')}
-              </Text>
-              <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textMuted, marginTop: 2 }}>
-                {t('Discover local businesses')}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => router.push('/ad-submit' as any)}
-              activeOpacity={0.75}
-            >
-              <MaterialIcons name="add-business" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
+          <View style={styles.headerInner}>
+            <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textOnDark }}>
+              {t('ads.title')}
+            </Text>
+            <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textMuted, marginTop: 2 }}>
+              {t('Discover local businesses')}
+            </Text>
           </View>
         </WavyHeader>
 
@@ -193,22 +184,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ThemeColors.creamBase,
   },
+  headerInner: {
+    width: '100%',
+    paddingHorizontal: 24,
+    paddingTop: 45,
+    paddingBottom: 10,
+  },
   centered: {
     paddingVertical: 100,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: ThemeColors.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: ThemeColors.brandLight,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
   sectionTitle: {
     fontSize: 18,

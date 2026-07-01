@@ -149,21 +149,23 @@ export default function KhataScreen() {
           <>
         {/* 1. WAVY HEADER */}
         <WavyHeader>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <View>
-              <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textOnDark }}>
-                {t(`My Khatas`)}
-              </Text>
-              <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textMuted, marginTop: 2 }}>
-                {linkedKhatas.length} {t(`linked shops`)}
-              </Text>
+          <View style={styles.headerInner}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View>
+                <Text style={{ fontFamily: Fonts.extrabold, fontSize: 18, color: ThemeColors.textOnDark }}>
+                  {t(`My Khatas`)}
+                </Text>
+                <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: ThemeColors.textMuted, marginTop: 2 }}>
+                  {linkedKhatas.length} {t(`linked shops`)}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: ThemeColors.brandLight, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => setIsLinkModalVisible(true)}
+              >
+                <MaterialIcons name="add-link" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity 
-              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: ThemeColors.brandLight, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setIsLinkModalVisible(true)}
-            >
-              <MaterialIcons name="add-link" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
         </WavyHeader>
 
@@ -375,6 +377,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: ThemeColors.creamBase,
+  },
+  headerInner: {
+    width: '100%',
+    paddingHorizontal: 24,
+    paddingTop: 45,
+    paddingBottom: 10,
   },
   content: {
     padding: 24,

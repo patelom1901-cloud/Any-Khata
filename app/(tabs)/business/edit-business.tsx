@@ -60,9 +60,9 @@ export default function EditBusinessScreen() {
         type: 'image/jpeg',
         name: asset.fileName || 'store_photo.jpg',
       } as any);
-      formData.append('upload_preset', process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+      formData.append('upload_preset', process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'any_khata_uploads');
 
-      const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dmqkhepuw';
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
